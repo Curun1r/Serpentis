@@ -4,6 +4,8 @@ from random import randint
 
 pygame.init()
 
+game_font = pygame.font.Font(None, 50)
+
 screen_width, screen_height = 1000, 650
 screen_fill_color = (32, 52, 71)
 screen = pygame.display.set_mode((screen_width, screen_height))
@@ -25,9 +27,11 @@ BALL_STEP = 4.2
 alien_image = pygame.image.load('image/alien.png')
 alien_width, alien_height = alien_image.get_size()
 alien_x, alien_y = randint(0, screen_width - alien_width), 0
-ALIEN_STEEP = 2.4
+ALIEN_STEEP = 2.2
 
-while True:
+game_is_running = True
+
+while game_is_running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             sys.exit()
@@ -69,3 +73,15 @@ while True:
 
     pygame.time.Clock().tick(64)
     pygame.display.update()
+
+    if alien_y + alien_height > fighter_y:
+        game_is_running = False
+
+game_over_text = game_font.render("Game Over", True, 'olive')
+game_over_rectangle = game_over_text.get_rect()
+game_over_rectangle.center = (screen_width / 2, screen_height / 2)
+screen.blit(game_over_text, game_over_rectangle)
+pygame.display.update()
+pygame.time.wait(6000)
+
+pygame.quit()
