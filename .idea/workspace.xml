@@ -4,10 +4,10 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="5f2947f4-1261-4afa-a0c8-64b802eb2870" name="Changes" comment="space-shooter_0.6.5">
+    <list default="true" id="5f2947f4-1261-4afa-a0c8-64b802eb2870" name="Changes" comment="space-shooter_0.6.6">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ball.py" beforeDir="false" afterPath="$PROJECT_DIR$/ball.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/constants.py" beforeDir="false" afterPath="$PROJECT_DIR$/constants.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game.py" beforeDir="false" afterPath="$PROJECT_DIR$/game.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -101,7 +101,7 @@
       <workItem from="1752597248171" duration="584000" />
       <workItem from="1752597840011" duration="4490000" />
       <workItem from="1752676475700" duration="24000" />
-      <workItem from="1752676506828" duration="5647000" />
+      <workItem from="1752676506828" duration="7188000" />
     </task>
     <task id="LOCAL-00001" summary="Srarship-shooter">
       <option name="closed" value="true" />
@@ -159,7 +159,15 @@
       <option name="project" value="LOCAL" />
       <updated>1752682695302</updated>
     </task>
-    <option name="localTasksCounter" value="8" />
+    <task id="LOCAL-00008" summary="space-shooter_0.6.6">
+      <option name="closed" value="true" />
+      <created>1752687762362</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1752687762362</updated>
+    </task>
+    <option name="localTasksCounter" value="9" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -183,7 +191,8 @@
     <MESSAGE value="space-shooter_0.6" />
     <MESSAGE value="space-shooter_0.6.1" />
     <MESSAGE value="space-shooter_0.6.5" />
-    <option name="LAST_COMMIT_MESSAGE" value="space-shooter_0.6.5" />
+    <MESSAGE value="space-shooter_0.6.6" />
+    <option name="LAST_COMMIT_MESSAGE" value="space-shooter_0.6.6" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/shooter$main.coverage" NAME="main Coverage Results" MODIFIED="1751132096265" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
