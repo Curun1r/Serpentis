@@ -20,7 +20,7 @@ class Ball:
             self.y -=self.step
 
     def is_out_of_screen(self):
-        return self.y > self.height < 0
+        return self.y < 0
 
     def reset(self):
         self.was_fired = False
