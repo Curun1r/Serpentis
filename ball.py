@@ -13,7 +13,7 @@ class Ball:
     def fire(self):
         self.was_fired = True
         self.x = self.fighter.x + self.fighter.width / 2 - self.width / 2
-        self.y = self.fighter.y - self.fighter.height
+        self.y = self.fighter.y - self.height
 
     def update_position(self):
         if self.was_fired:

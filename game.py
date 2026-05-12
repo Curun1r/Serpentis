@@ -14,6 +14,7 @@ class Game:
         self.screen = pygame.display.set_mode((self.screen_width, self.screen_height))
         self.game_font = pygame.font.Font(None, 30)
         self.game_score = 0
+        self.best_score = 0
         self.fighter = Fighter()
         self.alien = Alien()
         self.ball = Ball(self.fighter)
@@ -22,6 +23,7 @@ class Game:
         self.clock = pygame.time.Clock()
 
     def run(self):
+        self.show_start_screen()
         while self.game_is_running:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -59,6 +61,8 @@ class Game:
             self.ball.reset()
             self.alien.reset()
             self.game_score += 1
+            if self.game_score > self.best_score:
+                self.best_score = self.game_score
 
         if self.alien.has_reached_fighter(self.fighter):
             self.game_is_running = False
@@ -73,8 +77,8 @@ class Game:
         pygame.display.update()
 
     def show_game_score(self):
-        game_score_text = self.game_font.render(f"Your Score is {self.game_score}", True, 'white')
-        self.screen.blit(game_score_text, (20, 20))
+        score_text = self.game_font.render(f"Score: {self.game_score}   Best: {self.best_score}", True, 'white')
+        self.screen.blit(score_text, (20, 20))
 
     def show_game_over(self):
         self.screen.fill(self.screen_background_color)
@@ -119,3 +123,25 @@ class Game:
         self.ball = Ball(self.fighter)
         self.game_is_running = True
         self.run()
+
+    def show_start_screen(self):
+        self.screen.fill(self.screen_background_color)
+
+        title_text = self.game_font.render("Space Shooter", True, 'white')
+        title_rect = title_text.get_rect(center=(self.screen_width / 2, self.screen_height / 2 - 40))
+        self.screen.blit(title_text, title_rect)
+
+        start_text = self.game_font.render("Press SPACE to start", True, 'yellow')
+        start_rect = start_text.get_rect(center=(self.screen_width / 2, self.screen_height / 2 + 20))
+        self.screen.blit(start_text, start_rect)
+
+        pygame.display.update()
+
+        while True:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_SPACE:
+                        return
