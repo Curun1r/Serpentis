@@ -14,6 +14,8 @@ class Game:
         self.screen = pygame.display.set_mode((self.screen_width, self.screen_height))
         self.game_font = pygame.font.Font(None, 30)
         self.game_score = 0
+        self.lives = 3
+        self.flash_timer = 0
         self.best_score = 0
         self.fighter = Fighter()
         self.alien = Alien()
@@ -21,6 +23,10 @@ class Game:
 
         self.game_is_running = True
         self.clock = pygame.time.Clock()
+        self.shoot_sound = self._generate_sound(frequency=520, duration=0.08)
+        self.hit_sound = self._generate_sound(frequency=220, duration=0.25)
+        self.lose_life_sound = self._generate_sound(frequency=110, duration=0.5)
+        self.is_paused = False
 
     def run(self):
         self.show_start_screen()
@@ -30,9 +36,13 @@ class Game:
                     sys.exit()
                 self.handle_key_events(event)
 
-            self.update_game_state()
-            self.draw_screen()
-            self.clock.tick(120)
+            if not self.is_paused:
+                self.update_game_state()
+                self.draw_screen()
+            else:
+                self.show_pause_screen()
+
+            self.clock.tick(60)
 
         self.show_game_over()
 
@@ -44,6 +54,10 @@ class Game:
                 self.fighter.move_right()
             if event.key == pygame.K_SPACE:
                 self.ball.fire()
+                self.shoot_sound.play()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_p:
+                    self.is_paused = not self.is_paused
 
         if event.type == pygame.KEYUP:
             if event.key == pygame.K_LEFT or event.key == pygame.K_RIGHT:
@@ -63,9 +77,16 @@ class Game:
             self.game_score += 1
             if self.game_score > self.best_score:
                 self.best_score = self.game_score
+            self.hit_sound.play()
 
         if self.alien.has_reached_fighter(self.fighter):
-            self.game_is_running = False
+            self.lives -= 1
+            self.flash_timer = 20
+            self.alien.reset()
+            self.ball.reset()
+            self.lose_life_sound.play()
+            if self.lives <= 0:
+                self.game_is_running = False
 
     def draw_screen(self):
         self.screen.fill(self.screen_background_color)
@@ -74,10 +95,19 @@ class Game:
         if self.ball.was_fired:
             self.screen.blit(self.ball.image, (self.ball.x, self.ball.y))
         self.show_game_score()
+        if self.flash_timer > 0:
+            flash_surface = pygame.Surface((self.screen_width, self.screen_height))
+            flash_surface.fill((255, 0, 0))
+            flash_surface.set_alpha(self.flash_timer * 6)
+            self.screen.blit(flash_surface, (0, 0))
+            self.flash_timer -= 1
         pygame.display.update()
 
     def show_game_score(self):
-        score_text = self.game_font.render(f"Score: {self.game_score}   Best: {self.best_score}", True, 'white')
+        score_text = self.game_font.render(
+            f"Score: {self.game_score}   Best: {self.best_score}   Lives: {'♥ ' * self.lives}",
+            True, 'white'
+        )
         self.screen.blit(score_text, (20, 20))
 
     def show_game_over(self):
@@ -118,6 +148,7 @@ class Game:
 
     def reset(self):
         self.game_score = 0
+        self.lives = 3
         self.fighter = Fighter()
         self.alien = Alien()
         self.ball = Ball(self.fighter)
@@ -145,3 +176,20 @@ class Game:
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_SPACE:
                         return
+
+    def _generate_sound(self, frequency, duration, volume=0.3):
+        import array, math
+        sample_rate = 44100
+        frames = int(duration * sample_rate)
+        wave_data = array.array('h')
+        for i in range(frames):
+            value = int(volume * 32767 * math.sin(2 * math.pi * frequency * i / sample_rate))
+            wave_data.append(value)
+            wave_data.append(value)
+        return pygame.mixer.Sound(buffer=wave_data)
+
+    def show_pause_screen(self):
+        pause_text = self.game_font.render("PAUSED — press P to continue", True, 'yellow')
+        pause_rect = pause_text.get_rect(center=(self.screen_width / 2, self.screen_height / 2))
+        self.screen.blit(pause_text, pause_rect)
+        pygame.display.update()
