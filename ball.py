@@ -1,29 +1,22 @@
 import pygame
-from constants import BALL_STEP
+from constants import BALL_STEP, BALL_SCALE
+
 
 class Ball:
     def __init__(self, fighter):
-        self.image = pygame.image.load('image/ball.png')
+        raw_image = pygame.image.load('image/ball.png')
+        w, h = raw_image.get_size()
+        self.image = pygame.transform.scale(raw_image, (int(w * BALL_SCALE), int(h * BALL_SCALE)))
         self.width, self.height = self.image.get_size()
-        self.x, self.y = 0, 0
         self.step = BALL_STEP
-        self.was_fired = False
-        self.fighter = fighter
-
-    def fire(self):
-        self.was_fired = True
-        self.x = self.fighter.x + self.fighter.width / 2 - self.width / 2
-        self.y = self.fighter.y - self.height
+        self.x = fighter.x + fighter.width / 2 - self.width / 2
+        self.y = fighter.y - self.height
 
     def update_position(self):
-        if self.was_fired:
-            self.y -=self.step
+        self.y -= self.step
 
     def is_out_of_screen(self):
         return self.y < 0
-
-    def reset(self):
-        self.was_fired = False
 
     def is_collision(self, alien):
         return (

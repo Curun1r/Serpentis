@@ -18,9 +18,10 @@ class Game:
         self.flash_timer = 0
         self.best_score = 0
         self.fighter = Fighter()
-        self.alien = Alien()
+        self.aliens = [Alien(index=i) for i in range(3)]
         self.ball = Ball(self.fighter)
 
+        self.balls = []
         self.game_is_running = True
         self.clock = pygame.time.Clock()
         self.shoot_sound = self._generate_sound(frequency=520, duration=0.08)
@@ -52,55 +53,73 @@ class Game:
                 self.fighter.move_left()
             if event.key == pygame.K_RIGHT:
                 self.fighter.move_right()
+            if event.key == pygame.K_UP:
+                self.fighter.move_up()
+            if event.key == pygame.K_DOWN:
+                self.fighter.move_down()
             if event.key == pygame.K_SPACE:
-                self.ball.fire()
+                self.balls.append(Ball(self.fighter))
                 self.shoot_sound.play()
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_p:
-                    self.is_paused = not self.is_paused
+            if event.key == pygame.K_p:
+                self.is_paused = not self.is_paused
 
         if event.type == pygame.KEYUP:
-            if event.key == pygame.K_LEFT or event.key == pygame.K_RIGHT:
-                self.fighter.stop_moving()
+            if event.key == pygame.K_LEFT:
+                self.fighter.is_moving_left = False
+            if event.key == pygame.K_RIGHT:
+                self.fighter.is_moving_right = False
+            if event.key == pygame.K_UP:
+                self.fighter.is_moving_up = False
+            if event.key == pygame.K_DOWN:
+                self.fighter.is_moving_down = False
 
     def update_game_state(self):
         self.fighter.update_position()
-        self.alien.update_position()
-        self.ball.update_position()
 
-        if self.ball.is_out_of_screen():
-            self.ball.reset()
+        balls_to_remove = []
+        for ball in self.balls:
+            ball.update_position()
+            if ball.is_out_of_screen():
+                balls_to_remove.append(ball)
+                continue
+            for alien in self.aliens:
+                if ball.is_collision(alien):
+                    balls_to_remove.append(ball)
+                    alien.reset()
+                    self.game_score += 1
+                    if self.game_score > self.best_score:
+                        self.best_score = self.game_score
+                    self.hit_sound.play()
+                    break
 
-        if self.ball.is_collision(self.alien):
-            self.ball.reset()
-            self.alien.reset()
-            self.game_score += 1
-            if self.game_score > self.best_score:
-                self.best_score = self.game_score
-            self.hit_sound.play()
+        for ball in balls_to_remove:
+            if ball in self.balls:
+                self.balls.remove(ball)
 
-        if self.alien.has_reached_fighter(self.fighter):
-            self.lives -= 1
-            self.flash_timer = 20
-            self.alien.reset()
-            self.ball.reset()
-            self.lose_life_sound.play()
-            if self.lives <= 0:
-                self.game_is_running = False
+        for alien in self.aliens:
+            alien.update_position()
+            if alien.has_reached_fighter(self.fighter):
+                self.lives -= 1
+                self.flash_timer = 20
+                alien.reset()
+                self.lose_life_sound.play()
+                if self.lives <= 0:
+                    self.game_is_running = False
 
     def draw_screen(self):
         self.screen.fill(self.screen_background_color)
         self.screen.blit(self.fighter.image, (self.fighter.x, self.fighter.y))
-        self.screen.blit(self.alien.image, (self.alien.x, self.alien.y))
-        if self.ball.was_fired:
-            self.screen.blit(self.ball.image, (self.ball.x, self.ball.y))
-        self.show_game_score()
+        for alien in self.aliens:
+            self.screen.blit(alien.image, (alien.x, alien.y))
+        for ball in self.balls:
+            self.screen.blit(ball.image, (ball.x, ball.y))
         if self.flash_timer > 0:
             flash_surface = pygame.Surface((self.screen_width, self.screen_height))
             flash_surface.fill((255, 0, 0))
             flash_surface.set_alpha(self.flash_timer * 6)
             self.screen.blit(flash_surface, (0, 0))
             self.flash_timer -= 1
+        self.show_game_score()
         pygame.display.update()
 
     def show_game_score(self):
@@ -150,8 +169,8 @@ class Game:
         self.game_score = 0
         self.lives = 3
         self.fighter = Fighter()
-        self.alien = Alien()
-        self.ball = Ball(self.fighter)
+        self.aliens = [Alien(index=i) for i in range(3)]
+        self.balls = []
         self.game_is_running = True
         self.run()
 
