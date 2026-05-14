@@ -1,25 +1,29 @@
 import pygame
-from constants import BALL_STEP, BALL_SCALE
+from pygame.sprite import Sprite
+from constants import BALL_SPEED, BALL_SCALE
 
 
-class Ball:
+class Ball(Sprite):
     def __init__(self, fighter):
+        super().__init__()
+
+        # Load and scale the ball image
         raw_image = pygame.image.load('image/ball.png')
         w, h = raw_image.get_size()
         self.image = pygame.transform.scale(raw_image, (int(w * BALL_SCALE), int(h * BALL_SCALE)))
         self.width, self.height = self.image.get_size()
-        self.step = BALL_STEP
-        self.x = fighter.x + fighter.width / 2 - self.width / 2
-        self.y = fighter.y - self.height
 
-    def update_position(self):
-        self.y -= self.step
+        self.speed = BALL_SPEED
+
+        # Spawn the ball centered above the fighter
+        self.x = float(fighter.x + fighter.width / 2 - self.width / 2)
+        self.y = float(fighter.y - self.height)
+        self.rect = self.image.get_rect(x=int(self.x), y=int(self.y))
+
+    def update(self, dt):
+        # Move upward each frame
+        self.y -= self.speed * dt
+        self.rect.y = int(self.y)
 
     def is_out_of_screen(self):
-        return self.y < 0
-
-    def is_collision(self, alien):
-        return (
-            alien.x < self.x < alien.x + alien.width - self.width and
-            alien.y < self.y < alien.y + alien.height - self.height
-        )
+        return self.rect.top < 0
