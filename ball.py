@@ -1,14 +1,15 @@
 import pygame
 from pygame.sprite import Sprite
-from constants import BALL_SPEED, BALL_SCALE
+from config import BALL_SPEED, BALL_SCALE
+from assets import Assets
 
 
 class Ball(Sprite):
     def __init__(self, fighter):
         super().__init__()
 
-        # Load and scale the ball image
-        raw_image = pygame.image.load('image/ball.png')
+        # Fetch from cache — every shot reuses the same source surface
+        raw_image = Assets.get_image('image/ball.png')
         w, h = raw_image.get_size()
         self.image = pygame.transform.scale(raw_image, (int(w * BALL_SCALE), int(h * BALL_SCALE)))
         self.width, self.height = self.image.get_size()

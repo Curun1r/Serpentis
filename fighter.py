@@ -1,14 +1,15 @@
 import pygame
 from pygame.sprite import Sprite
-from constants import SCREEN_HEIGHT, SCREEN_WIDTH, FIGHTER_SPEED, FIGHTER_SCALE
+from config import SCREEN_HEIGHT, SCREEN_WIDTH, FIGHTER_SPEED, FIGHTER_SCALE
+from assets import Assets
 
 
 class Fighter(Sprite):
     def __init__(self):
         super().__init__()
 
-        # Load and scale the fighter image
-        raw_image = pygame.image.load('image/fighter.png')
+        # Fetch from cache — avoids reloading if Fighter is recreated each round
+        raw_image = Assets.get_image('image/fighter.png')
         w, h = raw_image.get_size()
         self.image = pygame.transform.scale(raw_image, (int(w * FIGHTER_SCALE), int(h * FIGHTER_SCALE)))
         self.width, self.height = self.image.get_size()

@@ -1,22 +1,23 @@
 import pygame
 from pygame.sprite import Sprite
-from constants import SCREEN_WIDTH, ALIEN_SPEED, ALIEN_SCALE
+from config import SCREEN_WIDTH, ALIEN_SPEED, ALIEN_SCALE, ALIEN_STAGGER
 from random import randint
+from assets import Assets
 
 
 class Alien(Sprite):
     def __init__(self, index=0):
         super().__init__()
 
-        # Load and scale the alien image
-        raw_image = pygame.image.load('image/alien.png')
+        # Fetch from cache — all 3 aliens share the same source surface
+        raw_image = Assets.get_image('image/alien.png')
         w, h = raw_image.get_size()
         self.image = pygame.transform.scale(raw_image, (int(w * ALIEN_SCALE), int(h * ALIEN_SCALE)))
         self.width, self.height = self.image.get_size()
 
         # Stagger starting positions vertically so aliens don't cluster together
         self.x = float(randint(0, SCREEN_WIDTH - self.width))
-        self.y = float(-index * 250)
+        self.y = float(-index * ALIEN_STAGGER)
         self.rect = self.image.get_rect(x=int(self.x), y=int(self.y))
 
         self.base_speed = float(ALIEN_SPEED)

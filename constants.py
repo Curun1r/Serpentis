@@ -5,7 +5,7 @@ SCREEN_BACKGROUND_COLOR = (32, 52, 71)
 GAME_CAPTION = "Awesome Shooter Game"
 
 # Movement speeds in pixels per second (used with delta time)
-FIGHTER_SPEED = 230
+FIGHTER_SPEED = 300
 ALIEN_SPEED = 48
 BALL_SPEED = 264
 

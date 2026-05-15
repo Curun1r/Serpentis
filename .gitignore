@@ -10,7 +10,10 @@ __pycache__/
 # macOS
 .DS_Store
 
-# PyInstaller (якщо будемо робити білд)
+# PyInstaller
 dist/
 build/
 *.spec
+
+# Player data (scores are local to each machine)
+data/

@@ -4,7 +4,9 @@ from enum import Enum
 from fighter import Fighter
 from alien import Alien
 from ball import Ball
-from constants import SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_BACKGROUND_COLOR, GAME_CAPTION
+from config import SCREEN_WIDTH, SCREEN_HEIGHT, GAME_CAPTION, ALIEN_COUNT, STARTING_LIVES
+from assets import Assets
+from score_manager import ScoreManager
 
 
 class GameState(Enum):
@@ -24,16 +26,16 @@ class Game:
         self.game_font = pygame.font.Font(None, 36)
         self.clock = pygame.time.Clock()
 
-        # Generate sounds programmatically — no external audio files needed
-        self.shoot_sound = self._generate_sound(frequency=520, duration=0.08)
-        self.hit_sound = self._generate_sound(frequency=220, duration=0.25)
-        self.lose_life_sound = self._generate_sound(frequency=110, duration=0.5)
+        # Generate sounds via Assets cache — safe to call multiple times
+        self.shoot_sound = Assets.get_sound('shoot', frequency=520, duration=0.08)
+        self.hit_sound = Assets.get_sound('hit', frequency=220, duration=0.25)
+        self.lose_life_sound = Assets.get_sound('lose_life', frequency=110, duration=0.5)
 
-        # Load starfield background once — reused every frame instead of fill()
-        self.background = pygame.image.load('image/background.png').convert()
+        # Load starfield background via Assets cache
+        self.background = Assets.get_image('image/background.png').convert()
 
-        # Best score persists across rounds within the same session
-        self.best_score = 0
+        # Load best score from previous session, falls back to 0 if no file exists
+        self.best_score = ScoreManager.load()
         self.state = GameState.START
 
         # Game over screen button rects defined once and reused every round
@@ -45,10 +47,10 @@ class Game:
     def _init_game(self):
         """Reset all game state for a new round."""
         self.game_score = 0
-        self.lives = 3
+        self.lives = STARTING_LIVES
         self.flash_timer = 0
         self.fighter = Fighter()
-        self.aliens = pygame.sprite.Group(*[Alien(index=i) for i in range(3)])
+        self.aliens = pygame.sprite.Group(*[Alien(index=i) for i in range(ALIEN_COUNT)])
         self.balls = pygame.sprite.Group()
 
     def run(self):
@@ -146,6 +148,7 @@ class Game:
                 self.game_score += 1
                 if self.game_score > self.best_score:
                     self.best_score = self.game_score
+                    ScoreManager.save(self.best_score)
                 self.hit_sound.play()
 
         # Check if any alien has reached the fighter
@@ -216,19 +219,3 @@ class Game:
         quit_text = self.game_font.render("Quit", True, 'white')
         self.screen.blit(quit_text, quit_text.get_rect(center=self.quit_rect.center))
 
-    def _generate_sound(self, frequency, duration, volume=0.3):
-        """Generate a sine wave sound programmatically without external files.
-
-        frequency: pitch in Hz (e.g. 440 = note A)
-        duration:  length in seconds
-        volume:    amplitude from 0.0 to 1.0
-        """
-        import array, math
-        sample_rate = 44100
-        frames = int(duration * sample_rate)
-        wave_data = array.array('h')
-        for i in range(frames):
-            value = int(volume * 32767 * math.sin(2 * math.pi * frequency * i / sample_rate))
-            wave_data.append(value)
-            wave_data.append(value)  # stereo — same value for both channels
-        return pygame.mixer.Sound(buffer=wave_data)
