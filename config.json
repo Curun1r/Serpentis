@@ -1,7 +1,7 @@
 {
     "screen": {
         "width": 1200,
-        "height": 750,
+        "height": 900,
         "caption": "Awesome Shooter Game"
     },
     "speeds": {

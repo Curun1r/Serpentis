@@ -30,9 +30,13 @@ class Alien(Sprite):
         self.y += self.speed_y * dt
         self.x += self.speed_x * dt
 
-        # Bounce off screen edges
-        if self.x <= 0 or self.x >= SCREEN_WIDTH - self.width:
-            self.speed_x *= -1
+        # Bounce off screen edges and clamp position so alien never goes off-screen
+        if self.x <= 0:
+            self.x = 0.0
+            self.speed_x = abs(self.speed_x)
+        elif self.x >= SCREEN_WIDTH - self.width:
+            self.x = float(SCREEN_WIDTH - self.width)
+            self.speed_x = -abs(self.speed_x)
 
         self.rect.x = int(self.x)
         self.rect.y = int(self.y)
@@ -52,4 +56,5 @@ class Alien(Sprite):
         self.rect.y = int(self.y)
 
     def has_reached_fighter(self, fighter):
-        return self.rect.bottom > fighter.rect.top
+        # Use actual sprite overlap instead of just top edge — more precise and fair
+        return self.rect.colliderect(fighter.rect)

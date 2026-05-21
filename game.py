@@ -99,8 +99,12 @@ class Game:
                 if event.key in (pygame.K_DOWN, pygame.K_s):
                     self.fighter.move_down()
                 if event.key == pygame.K_SPACE:
-                    self.balls.add(Ball(self.fighter))
-                    self.shoot_sound.play()
+                    # Max 3 simultaneous projectiles to prevent screen spam
+                    if len(self.balls) < 3:
+                        self.balls.add(Ball(self.fighter))
+                        self.shoot_sound.play()
+                if event.key in (pygame.K_LSHIFT, pygame.K_RSHIFT):
+                    self.fighter.dash()
                 if event.key == pygame.K_p:
                     self.state = GameState.PAUSED
 
@@ -151,15 +155,21 @@ class Game:
                     ScoreManager.save(self.best_score)
                 self.hit_sound.play()
 
-        # Check if any alien has reached the fighter
+        # Check if any alien has reached the fighter or tunneled past it
+        # Two conditions cover both cases:
+        # 1. colliderect — normal overlap with the fighter sprite
+        # 2. rect.top > screen_height — alien moved so fast it skipped past the fighter in one frame
         for alien in list(self.aliens):
-            if alien.has_reached_fighter(self.fighter):
+            passed_fighter = alien.has_reached_fighter(self.fighter)
+            flew_off_screen = alien.rect.top > self.screen_height
+            if passed_fighter or flew_off_screen:
                 self.lives -= 1
                 self.flash_timer = 20
                 alien.reset()
                 self.lose_life_sound.play()
                 if self.lives <= 0:
                     self.state = GameState.GAME_OVER
+                    return
 
     def _draw(self):
         """Draw all game objects and effects."""
@@ -178,12 +188,29 @@ class Game:
         self._draw_hud()
 
     def _draw_hud(self):
-        """Draw the heads-up display: score, best score, and remaining lives."""
+        """Draw the heads-up display: score, best score, lives, and dash indicator."""
         score_text = self.game_font.render(
             f"Score: {self.game_score}   Best: {self.best_score}   Lives: {'♥ ' * self.lives}",
             True, 'white'
         )
         self.screen.blit(score_text, (20, 20))
+
+        # Dash cooldown bar — shown below the score line
+        bar_x, bar_y, bar_w, bar_h = 20, 52, 80, 6
+        ratio = self.fighter.dash_cooldown_ratio  # 0.0 = ready, 1.0 = just used
+        if ratio > 0:
+            # Grey background + cyan fill shrinking as cooldown expires
+            pygame.draw.rect(self.screen, (60, 60, 60),  (bar_x, bar_y, bar_w, bar_h), border_radius=3)
+            fill_w = int(bar_w * (1.0 - ratio))
+            if fill_w > 0:
+                pygame.draw.rect(self.screen, (0, 220, 255), (bar_x, bar_y, fill_w, bar_h), border_radius=3)
+            label = self.game_font.render("DASH", True, (120, 120, 120))
+        else:
+            # Solid cyan when ready
+            pygame.draw.rect(self.screen, (0, 220, 255), (bar_x, bar_y, bar_w, bar_h), border_radius=3)
+            label = self.game_font.render("DASH", True, (0, 220, 255))
+        self.screen.blit(pygame.transform.scale(label, (int(label.get_width() * 0.6), int(label.get_height() * 0.6))),
+                         (bar_x + bar_w + 6, bar_y - 2))
 
     def _draw_start_screen(self):
         """Draw the initial start screen with title and prompt."""

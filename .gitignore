@@ -17,3 +17,7 @@ build/
 
 # Player data (scores are local to each machine)
 data/
+
+# macOS app bundle (generated locally)
+*.app
+icon.iconset/
