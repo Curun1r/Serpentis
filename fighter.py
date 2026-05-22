@@ -1,6 +1,7 @@
 import pygame
+import config
 from pygame.sprite import Sprite
-from config import SCREEN_HEIGHT, SCREEN_WIDTH, FIGHTER_SPEED, FIGHTER_SCALE
+from config import FIGHTER_SPEED, FIGHTER_SCALE
 from assets import Assets
 
 DASH_MULTIPLIER = 4.0   # dash is 4× normal speed
@@ -19,8 +20,8 @@ class Fighter(Sprite):
         self.width, self.height = self.image.get_size()
 
         # Use float coordinates for smooth sub-pixel movement, sync to rect for rendering
-        self.x = float(SCREEN_WIDTH / 2 - self.width / 2)
-        self.y = float(SCREEN_HEIGHT - self.height)
+        self.x = float(config.SCREEN_WIDTH / 2 - self.width / 2)
+        self.y = float(config.SCREEN_HEIGHT - self.height)
         self.rect = self.image.get_rect(x=int(self.x), y=int(self.y))
 
         self.speed = FIGHTER_SPEED
@@ -68,17 +69,20 @@ class Fighter(Sprite):
         return self._dash_cooldown / DASH_COOLDOWN
 
     # ------------------------------------------------------------------
-    # Update
+    # Update — reads config.SCREEN_WIDTH/HEIGHT live so resolution changes apply
     # ------------------------------------------------------------------
 
     def update(self, dt):
+        sw = config.SCREEN_WIDTH
+        sh = config.SCREEN_HEIGHT
+
         if self._dash_timer > 0:
             # Dash overrides normal movement — fly in the locked direction
             self._dash_timer -= dt
             dash_speed = self.speed * DASH_MULTIPLIER
-            self.x = max(0.0, min(float(SCREEN_WIDTH  - self.width),  self.x + self._dash_vx * dash_speed * dt))
-            self.y = max(float(SCREEN_HEIGHT // 2),
-                         min(float(SCREEN_HEIGHT - self.height),       self.y + self._dash_vy * dash_speed * dt))
+            self.x = max(0.0, min(float(sw - self.width),  self.x + self._dash_vx * dash_speed * dt))
+            self.y = max(float(sh // 2),
+                         min(float(sh - self.height),      self.y + self._dash_vy * dash_speed * dt))
         else:
             if self._dash_cooldown > 0:
                 self._dash_cooldown -= dt
@@ -86,11 +90,11 @@ class Fighter(Sprite):
             # Normal movement within screen bounds
             if self.is_moving_left  and self.x > 0:
                 self.x -= self.speed * dt
-            if self.is_moving_right and self.x < SCREEN_WIDTH - self.width:
+            if self.is_moving_right and self.x < sw - self.width:
                 self.x += self.speed * dt
-            if self.is_moving_up    and self.y > SCREEN_HEIGHT // 2:
+            if self.is_moving_up    and self.y > sh // 2:
                 self.y -= self.speed * dt
-            if self.is_moving_down  and self.y < SCREEN_HEIGHT - self.height:
+            if self.is_moving_down  and self.y < sh - self.height:
                 self.y += self.speed * dt
 
         # Sync float position to rect for collision and rendering
