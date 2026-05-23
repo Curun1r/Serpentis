@@ -81,8 +81,7 @@ class Fighter(Sprite):
             self._dash_timer -= dt
             dash_speed = self.speed * DASH_MULTIPLIER
             self.x = max(0.0, min(float(sw - self.width),  self.x + self._dash_vx * dash_speed * dt))
-            self.y = max(float(sh // 2),
-                         min(float(sh - self.height),      self.y + self._dash_vy * dash_speed * dt))
+            self.y = max(0.0, min(float(sh - self.height), self.y + self._dash_vy * dash_speed * dt))
         else:
             if self._dash_cooldown > 0:
                 self._dash_cooldown -= dt
@@ -92,7 +91,7 @@ class Fighter(Sprite):
                 self.x -= self.speed * dt
             if self.is_moving_right and self.x < sw - self.width:
                 self.x += self.speed * dt
-            if self.is_moving_up    and self.y > sh // 2:
+            if self.is_moving_up    and self.y > 0:
                 self.y -= self.speed * dt
             if self.is_moving_down  and self.y < sh - self.height:
                 self.y += self.speed * dt

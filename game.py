@@ -1,6 +1,8 @@
 import pygame
 import sys
 import config
+import random
+import math
 from enum import Enum
 from fighter import Fighter
 from alien import Alien
@@ -9,6 +11,7 @@ from config import GAME_CAPTION, STARTING_LIVES
 from assets import Assets
 from score_manager import ScoreManager
 from settings_manager import Settings, RESOLUTIONS
+from explosion import Explosion
 
 
 class GameState(Enum):
@@ -58,6 +61,11 @@ class Game:
         # Settings screen state
         self._vol_dragging = False
 
+        # Off-screen canvas for camera shake (same size as display)
+        self._canvas      = pygame.Surface((self.screen_width, self.screen_height))
+        self._shake_timer = 0   # frames remaining for camera shake
+        self._particles: list[dict] = []
+
         self._init_game()
 
     # ------------------------------------------------------------------
@@ -89,9 +97,10 @@ class Game:
         self.screen = pygame.display.set_mode((w, h))
         config.SCREEN_WIDTH  = w
         config.SCREEN_HEIGHT = h
-        # Rescale background for the new window size
+        # Rescale background and recreate canvas for the new window size
         raw_bg = Assets.get_image('image/background.png')
         self.background = pygame.transform.scale(raw_bg, (w, h)).convert()
+        self._canvas = pygame.Surface((w, h))
         self._update_button_rects()
 
     def _init_game(self):
@@ -104,8 +113,11 @@ class Game:
         self.aliens  = pygame.sprite.Group(
             *[Alien(index=i, speed_mult=s.alien_speed_mult) for i in range(s.alien_count)]
         )
-        self.balls = pygame.sprite.Group()
+        self.balls      = pygame.sprite.Group()
         self._ball_queue = []  # insertion-order list for FIFO removal
+        self.explosions  = pygame.sprite.Group()
+        self._particles  = []
+        self._shake_timer = 0
 
     # ------------------------------------------------------------------
     # Main loop
@@ -317,6 +329,8 @@ class Game:
         self.fighter.update(dt)
         self.aliens.update(dt)
         self.balls.update(dt)
+        self.explosions.update(dt)
+        self._update_particles(dt)
 
         # Remove balls that have left the top of the screen
         for ball in list(self.balls):
@@ -330,6 +344,26 @@ class Game:
             self._ball_queue_remove(ball)
         for aliens_hit in hits.values():
             for alien in aliens_hit:
+                cx, cy = alien.rect.center
+                # Explosion animation
+                self.explosions.add(Explosion(cx, cy))
+                # Particle burst
+                for _ in range(12):
+                    angle = random.uniform(0, math.tau)
+                    speed = random.uniform(60, 190)
+                    life  = random.uniform(0.35, 0.65)
+                    color = random.choice([
+                        (255, 220, 0), (255, 140, 0),
+                        (255, 70,  0), (255, 255, 100),
+                    ])
+                    self._particles.append({
+                        'x': float(cx), 'y': float(cy),
+                        'vx': math.cos(angle) * speed,
+                        'vy': math.sin(angle) * speed,
+                        'life': life, 'max_life': life,
+                        'color': color,
+                        'size': random.randint(2, 5),
+                    })
                 alien.reset()
                 self.game_score += 1
                 if self.game_score > self.best_score:
@@ -344,6 +378,7 @@ class Game:
             if passed_fighter or flew_off_screen:
                 self.lives -= 1
                 self.flash_timer = 20
+                self._shake_timer = 5  # camera shake on life lost
                 alien.reset()
                 self.lose_life_sound.play()
                 if self.lives <= 0:
@@ -355,48 +390,88 @@ class Game:
     # ------------------------------------------------------------------
 
     def _draw(self):
-        """Draw all game objects and effects."""
-        self.screen.blit(self.fighter.image, self.fighter.rect)
-        self.aliens.draw(self.screen)
-        self.balls.draw(self.screen)
+        """Draw all game objects and effects onto the canvas, then blit to screen with shake."""
+        cv = self._canvas
 
-        # Red screen flash when a life is lost, fades out over 20 frames
+        # Draw the game world onto the off-screen canvas
+        cv.blit(self.background, (0, 0))
+        cv.blit(self.fighter.image, self.fighter.rect)
+        self.aliens.draw(cv)
+        self.balls.draw(cv)
+        self.explosions.draw(cv)
+        self._draw_particles(cv)
+
+        # Red tint flash when a life is lost — SRCALPHA ensures proper per-pixel blending
         if self.flash_timer > 0:
-            flash_surface = pygame.Surface((self.screen_width, self.screen_height))
-            flash_surface.fill((255, 0, 0))
-            flash_surface.set_alpha(self.flash_timer * 6)
-            self.screen.blit(flash_surface, (0, 0))
+            alpha = int(self.flash_timer * 4.5)   # max ~90 at timer=20 — subtle tint only
+            flash_surface = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
+            flash_surface.fill((255, 0, 0, alpha))
+            cv.blit(flash_surface, (0, 0))
             self.flash_timer -= 1
 
-        self._draw_hud()
+        self._draw_hud(cv)
 
-    def _draw_hud(self):
+        # Camera shake — pick a random offset while timer is active
+        if self._shake_timer > 0:
+            ox = random.randint(-8, 8)
+            oy = random.randint(-5, 5)
+            self._shake_timer -= 1
+        else:
+            ox, oy = 0, 0
+
+        self.screen.fill((0, 0, 0))          # black border visible only during shake
+        self.screen.blit(cv, (ox, oy))
+
+    def _update_particles(self, dt: float):
+        """Advance all active particles and discard expired ones."""
+        alive = []
+        for p in self._particles:
+            p['x']    += p['vx'] * dt
+            p['y']    += p['vy'] * dt
+            p['vy']   += 90.0 * dt   # gentle gravity
+            p['life'] -= dt
+            if p['life'] > 0:
+                alive.append(p)
+        self._particles = alive
+
+    def _draw_particles(self, surface: pygame.Surface):
+        """Draw all active particles as tiny fading rectangles."""
+        for p in self._particles:
+            ratio = p['life'] / p['max_life']
+            r = int(p['color'][0] * ratio)
+            g = int(p['color'][1] * ratio)
+            b = int(p['color'][2] * ratio)
+            s = p['size']
+            pygame.draw.rect(surface, (r, g, b),
+                             (int(p['x']) - s // 2, int(p['y']) - s // 2, s, s))
+
+    def _draw_hud(self, surface: pygame.Surface):
         """Draw the heads-up display: score, best score, lives (heart icons), and dash indicator."""
         score_text = self.game_font.render(
             f"Score: {self.game_score}   Best: {self.best_score}   Lives:",
             True, 'white'
         )
-        self.screen.blit(score_text, (20, 20))
+        surface.blit(score_text, (20, 20))
 
         # Heart icons drawn right after the text
         hearts_x = 20 + score_text.get_width() + 6
         hearts_y = 20 + score_text.get_height() // 2 - self.heart_icon.get_height() // 2
         for i in range(self.lives):
-            self.screen.blit(self.heart_icon, (hearts_x + i * 26, hearts_y))
+            surface.blit(self.heart_icon, (hearts_x + i * 26, hearts_y))
 
         # Dash cooldown bar — shown below the score line
         bar_x, bar_y, bar_w, bar_h = 20, 52, 80, 6
         ratio = self.fighter.dash_cooldown_ratio  # 0.0 = ready, 1.0 = just used
         if ratio > 0:
-            pygame.draw.rect(self.screen, (60, 60, 60),  (bar_x, bar_y, bar_w, bar_h), border_radius=3)
+            pygame.draw.rect(surface, (60, 60, 60),  (bar_x, bar_y, bar_w, bar_h), border_radius=3)
             fill_w = int(bar_w * (1.0 - ratio))
             if fill_w > 0:
-                pygame.draw.rect(self.screen, (0, 220, 255), (bar_x, bar_y, fill_w, bar_h), border_radius=3)
+                pygame.draw.rect(surface, (0, 220, 255), (bar_x, bar_y, fill_w, bar_h), border_radius=3)
             label = self.game_font.render("DASH", True, (120, 120, 120))
         else:
-            pygame.draw.rect(self.screen, (0, 220, 255), (bar_x, bar_y, bar_w, bar_h), border_radius=3)
+            pygame.draw.rect(surface, (0, 220, 255), (bar_x, bar_y, bar_w, bar_h), border_radius=3)
             label = self.game_font.render("DASH", True, (0, 220, 255))
-        self.screen.blit(
+        surface.blit(
             pygame.transform.scale(label, (int(label.get_width() * 0.6), int(label.get_height() * 0.6))),
             (bar_x + bar_w + 6, bar_y - 2)
         )
