@@ -5,8 +5,11 @@ import random
 import math
 from enum import Enum
 from fighter import Fighter
-from alien import Alien
+from alien import Alien, ArmoredAlien, ZigzagAlien, ShooterAlien
+from alien_bullet import AlienBullet
 from ball import Ball
+from boss import Boss
+from powerup import TripleShotPowerUp, ShieldPowerUp, SlowTimePowerUp
 from config import GAME_CAPTION, STARTING_LIVES
 from assets import Assets
 from score_manager import ScoreManager
@@ -23,30 +26,41 @@ class GameState(Enum):
     SETTINGS  = "settings"
 
 
+# Fixed logical game-world resolution — sprites and physics always live in this space.
+# The canvas is scaled up to the real display size, so higher resolutions look crisp.
+_LOGICAL_W, _LOGICAL_H = 1280, 720
+
+
 class Game:
     def __init__(self):
         pygame.display.set_caption(GAME_CAPTION)
 
-        # Apply saved resolution immediately so config module is in sync from the start
+        # The display always runs at the logical resolution.
+        # pygame.SCALED lets pygame (not the OS compositor) handle HiDPI upscaling,
+        # which prevents macOS/Windows from applying blurry bilinear filtering on top.
         s = Settings.get()
-        self.screen_width, self.screen_height = s.resolution
-        config.SCREEN_WIDTH  = self.screen_width
-        config.SCREEN_HEIGHT = self.screen_height
+        self.screen_width  = _LOGICAL_W
+        self.screen_height = _LOGICAL_H
+        config.SCREEN_WIDTH  = _LOGICAL_W
+        config.SCREEN_HEIGHT = _LOGICAL_H
 
-        _fs_flags = pygame.FULLSCREEN | pygame.SCALED if s.fullscreen else 0
-        self.screen = pygame.display.set_mode((self.screen_width, self.screen_height), _fs_flags)
+        # FIX: parenthesise the flags correctly so windowed mode doesn't go fullscreen
+        _fs_flags = (pygame.FULLSCREEN | pygame.SCALED) if s.fullscreen else pygame.SCALED
+        self.screen = pygame.display.set_mode((_LOGICAL_W, _LOGICAL_H), _fs_flags)
         self.game_font = pygame.font.Font(None, 36)
+        self.wave_font = pygame.font.Font(None, 86)   # large font for wave announcements
         self.clock = pygame.time.Clock()
 
         # Generate sounds via Assets cache — safe to call multiple times
         self.shoot_sound     = Assets.get_sound('shoot',     frequency=520, duration=0.08)
         self.hit_sound       = Assets.get_sound('hit',       frequency=220, duration=0.25)
         self.lose_life_sound = Assets.get_sound('lose_life', frequency=110, duration=0.5)
+        self.powerup_sound   = Assets.get_sound('powerup',   frequency=740, duration=0.22)
         self._apply_volume()
 
-        # Load and scale background to current resolution
+        # Single background scaled to logical resolution — used everywhere
         raw_bg = Assets.get_image('image/background.png')
-        self.background = pygame.transform.scale(raw_bg, (self.screen_width, self.screen_height)).convert()
+        self.background = pygame.transform.scale(raw_bg, (_LOGICAL_W, _LOGICAL_H)).convert()
 
         # Pre-scale heart icon for HUD (loaded once, reused every frame)
         raw_heart = Assets.get_image('image/heart.png')
@@ -63,8 +77,8 @@ class Game:
         # Settings screen state
         self._vol_dragging = False
 
-        # Off-screen canvas for camera shake (same size as display)
-        self._canvas      = pygame.Surface((self.screen_width, self.screen_height))
+        # Off-screen canvas for camera shake — always logical size; scaled to display at blit time
+        self._canvas      = pygame.Surface((_LOGICAL_W, _LOGICAL_H))
         self._shake_timer = 0   # frames remaining for camera shake
         self._particles: list[dict] = []
 
@@ -88,23 +102,18 @@ class Game:
     def _apply_volume(self):
         """Push current volume from Settings to all sound objects."""
         vol = Settings.get().volume
-        for snd in (self.shoot_sound, self.hit_sound, self.lose_life_sound):
+        for snd in (self.shoot_sound, self.hit_sound,
+                    self.lose_life_sound, self.powerup_sound):
             snd.set_volume(vol)
 
     def _apply_resolution(self):
-        """Apply the resolution (and fullscreen flag) stored in Settings to the display."""
-        s = Settings.get()
-        w, h = s.resolution
-        self.screen_width  = w
-        self.screen_height = h
-        flags = pygame.FULLSCREEN | pygame.SCALED if s.fullscreen else 0
-        self.screen = pygame.display.set_mode((w, h), flags)
-        config.SCREEN_WIDTH  = w
-        config.SCREEN_HEIGHT = h
-        # Rescale background and recreate canvas for the new window size
-        raw_bg = Assets.get_image('image/background.png')
-        self.background = pygame.transform.scale(raw_bg, (w, h)).convert()
-        self._canvas = pygame.Surface((w, h))
+        """Apply the fullscreen flag stored in Settings to the display.
+        The logical resolution (_LOGICAL_W × _LOGICAL_H) never changes — pygame.SCALED
+        handles all upscaling so the image stays sharp on HiDPI / Retina displays."""
+        s     = Settings.get()
+        flags = (pygame.FULLSCREEN | pygame.SCALED) if s.fullscreen else pygame.SCALED
+        self.screen = pygame.display.set_mode((_LOGICAL_W, _LOGICAL_H), flags)
+        # screen_width/height, config, background, and canvas all stay at logical size
         self._update_button_rects()
 
     def _toggle_fullscreen(self):
@@ -115,20 +124,59 @@ class Game:
         self._apply_resolution()
 
     def _init_game(self):
-        """Reset all game state for a new round."""
-        s = Settings.get()
-        self.game_score  = 0
-        self.lives       = STARTING_LIVES
-        self.flash_timer = 0
-        self.fighter = Fighter()
-        self.aliens  = pygame.sprite.Group(
-            *[Alien(index=i, speed_mult=s.alien_speed_mult) for i in range(s.alien_count)]
-        )
-        self.balls      = pygame.sprite.Group()
-        self._ball_queue = []  # insertion-order list for FIFO removal
-        self.explosions  = pygame.sprite.Group()
-        self._particles  = []
-        self._shake_timer = 0
+        """Reset all game state for a new round (wave 1)."""
+        self.game_score        = 0
+        self.lives             = STARTING_LIVES
+        self.flash_timer       = 0
+        self.wave              = 0   # set to 1 by _start_wave below
+        self.fighter           = Fighter()
+        self.balls             = pygame.sprite.Group()
+        self._ball_queue       = []
+        self.explosions        = pygame.sprite.Group()
+        self.alien_bullets     = pygame.sprite.Group()
+        self.powerups          = pygame.sprite.Group()
+        self.boss              = None
+        self._particles        = []
+        self._shake_timer      = 0
+        self._wave_banner_timer = 0.0
+        # Power-up state
+        self._triple_shot_timer = 0.0   # > 0 while 3× shot is active
+        self._shield_active     = False  # absorbs one hit
+        self._slow_time_timer   = 0.0   # > 0 while slow is active
+        self._start_wave(1)
+
+    def _start_wave(self, wave_num: int):
+        """Spawn a fresh wave of enemies.  Every 5th wave is a boss fight."""
+        self.wave              = wave_num
+        self.alien_bullets     = pygame.sprite.Group()
+        self.powerups          = pygame.sprite.Group()
+        self._wave_banner_timer = 2.8
+
+        if wave_num % 5 == 0:
+            # Boss wave — no regular aliens
+            self.boss   = Boss(wave_num)
+            self.aliens = pygame.sprite.Group()
+        else:
+            self.boss   = None
+            self.aliens = pygame.sprite.Group(*self._make_wave_aliens(wave_num))
+
+    def _make_wave_aliens(self, wave_num: int) -> list:
+        """Return a list of alien sprites tuned for *wave_num* and current difficulty."""
+        s     = Settings.get()
+        count = s.alien_count + (wave_num - 1)          # +1 alien per wave
+        # Speed grows 15 % per wave, capped at 4× the difficulty baseline
+        speed = s.alien_speed_mult * (1.0 + (wave_num - 1) * 0.15)
+        speed = min(speed, s.alien_speed_mult * 4.0)
+
+        aliens = []
+        for i in range(count):
+            roll = random.random()
+            if   wave_num >= 4 and roll < 0.15:   cls = ShooterAlien
+            elif wave_num >= 3 and roll < 0.30:   cls = ZigzagAlien
+            elif wave_num >= 2 and roll < 0.30:   cls = ArmoredAlien
+            else:                                  cls = Alien
+            aliens.append(cls(index=i, speed_mult=speed))
+        return aliens
 
     # ------------------------------------------------------------------
     # Main loop
@@ -251,14 +299,14 @@ class Game:
         slider_x = cx - slider_w // 2
         slider_y = 230
 
-        # Resolution buttons
-        btn_w, btn_h = 160, 44
-        gap = 16
-        total_res_w = 3 * btn_w + 2 * gap
+        # Resolution buttons  (4 options now — 1024, 1280, 1920, 2560)
+        btn_w, btn_h = 130, 44
+        gap = 12
+        total_res_w = 4 * btn_w + 3 * gap
         res_x0 = cx - total_res_w // 2
         res_rects = [
             pygame.Rect(res_x0 + i * (btn_w + gap), 335, btn_w, btn_h)
-            for i in range(3)
+            for i in range(4)
         ]
 
         # Difficulty buttons
@@ -399,13 +447,25 @@ class Game:
     # ------------------------------------------------------------------
 
     def _shoot(self):
-        """Fire a projectile. If 3 are already in flight, the oldest is removed first (FIFO)."""
-        if len(self._ball_queue) >= 3:
-            oldest = self._ball_queue.pop(0)
-            oldest.kill()
-        ball = Ball(self.fighter)
-        self.balls.add(ball)
-        self._ball_queue.append(ball)
+        """Fire one bullet (or three when 3× power-up is active), FIFO-limited."""
+        if self._triple_shot_timer > 0:
+            angles = [-18, 0, 18]
+            limit  = 9
+        else:
+            angles = [0]
+            limit  = 3
+
+        # Trim oldest bullets to stay within the queue limit
+        while len(self._ball_queue) + len(angles) > limit:
+            if self._ball_queue:
+                self._ball_queue.pop(0).kill()
+            else:
+                break
+
+        for ang in angles:
+            ball = Ball(self.fighter, angle_deg=ang)
+            self.balls.add(ball)
+            self._ball_queue.append(ball)
         self.shoot_sound.play()
 
     def _ball_queue_remove(self, ball):
@@ -421,64 +481,189 @@ class Game:
 
     def _update(self, dt):
         """Update all game objects and check for collisions."""
+        # ── Countdown timers ───────────────────────────────────────────
+        if self._wave_banner_timer > 0: self._wave_banner_timer -= dt
+        if self._triple_shot_timer > 0: self._triple_shot_timer -= dt
+        if self._slow_time_timer   > 0: self._slow_time_timer   -= dt
+
+        # Slow-time factor: aliens & their bullets move at 30 % when active
+        slow = 0.30 if self._slow_time_timer > 0 else 1.0
+
+        # ── Physics updates ────────────────────────────────────────────
         self.fighter.update(dt)
-        self.aliens.update(dt)
+        self.powerups.update(dt)
+        self.aliens.update(dt * slow)
         self.balls.update(dt)
         self.explosions.update(dt)
+        self.alien_bullets.update(dt * slow)
         self._update_particles(dt)
 
-        # Remove balls that have left the top of the screen
+        # ── Boss ───────────────────────────────────────────────────────
+        self._update_boss(dt)
+        if self.state == GameState.GAME_OVER:
+            return
+
+        # ── Player bullets leaving screen ─────────────────────────────
         for ball in list(self.balls):
             if ball.is_out_of_screen():
                 ball.kill()
                 self._ball_queue_remove(ball)
 
-        # Check ball-alien collisions — True removes the ball from its group on hit
+        # ── Alien bullets leaving screen ───────────────────────────────
+        for ab in list(self.alien_bullets):
+            if ab.is_off_screen():
+                ab.kill()
+
+        # ── Power-up collection ────────────────────────────────────────
+        for pu in list(self.powerups):
+            if pu.is_off_screen():
+                pu.kill()
+                continue
+            if pu.rect.colliderect(self.fighter.rect):
+                self._apply_powerup(pu)
+                pu.kill()
+
+        # ── ShooterAlien fires ─────────────────────────────────────────
+        for alien in self.aliens:
+            if isinstance(alien, ShooterAlien):
+                for cx, cy in alien.drain_shots():
+                    self.alien_bullets.add(AlienBullet(cx, cy))
+
+        # ── Player bullets → aliens ────────────────────────────────────
         hits = pygame.sprite.groupcollide(self.balls, self.aliens, True, False)
         for ball in hits.keys():
             self._ball_queue_remove(ball)
         for aliens_hit in hits.values():
             for alien in aliens_hit:
+                if not alien.alive():
+                    continue
                 cx, cy = alien.rect.center
-                # Explosion animation
-                self.explosions.add(Explosion(cx, cy))
-                # Particle burst
-                for _ in range(12):
-                    angle = random.uniform(0, math.tau)
-                    speed = random.uniform(60, 190)
-                    life  = random.uniform(0.35, 0.65)
-                    color = random.choice([
-                        (255, 220, 0), (255, 140, 0),
-                        (255, 70,  0), (255, 255, 100),
-                    ])
-                    self._particles.append({
-                        'x': float(cx), 'y': float(cy),
-                        'vx': math.cos(angle) * speed,
-                        'vy': math.sin(angle) * speed,
-                        'life': life, 'max_life': life,
-                        'color': color,
-                        'size': random.randint(2, 5),
-                    })
-                alien.reset()
-                self.game_score += 1
-                if self.game_score > self.best_score:
-                    self.best_score = self.game_score
-                    ScoreManager.save(self.best_score)
+                if alien.take_hit():
+                    alien.kill()
+                    self.explosions.add(Explosion(cx, cy))
+                    self._spawn_particles(cx, cy)
+                    self._maybe_drop_powerup(cx, cy)
+                    self.game_score += alien.SCORE
+                    if self.game_score > self.best_score:
+                        self.best_score = self.game_score
+                        ScoreManager.save(self.best_score)
+                else:
+                    self._spawn_particles(cx, cy, count=5,
+                                         colors=[(90, 140, 255), (160, 195, 255)])
                 self.hit_sound.play()
 
-        # Check if any alien has reached the fighter or tunneled past it
-        for alien in list(self.aliens):
-            passed_fighter = alien.has_reached_fighter(self.fighter)
-            flew_off_screen = alien.rect.top > self.screen_height
-            if passed_fighter or flew_off_screen:
-                self.lives -= 1
-                self.flash_timer = 20
-                self._shake_timer = 5  # camera shake on life lost
-                alien.reset()
-                self.lose_life_sound.play()
-                if self.lives <= 0:
-                    self.state = GameState.GAME_OVER
+        # ── Alien bullets → fighter ────────────────────────────────────
+        for ab in list(self.alien_bullets):
+            if ab.rect.colliderect(self.fighter.rect):
+                ab.kill()
+                self._take_damage()
+                if self.state == GameState.GAME_OVER:
                     return
+
+        # ── Aliens reaching / passing fighter ─────────────────────────
+        for alien in list(self.aliens):
+            if alien.has_reached_fighter(self.fighter) or alien.is_off_screen():
+                alien.kill()
+                self._take_damage()
+                if self.state == GameState.GAME_OVER:
+                    return
+
+        # ── Wave complete (non-boss waves only) ────────────────────────
+        if self.boss is None and len(self.aliens) == 0:
+            self._start_wave(self.wave + 1)
+
+    def _update_boss(self, dt: float):
+        """Handle boss movement, shooting, and collision with player bullets."""
+        if not self.boss:
+            return
+
+        self.boss.update(dt)   # boss is immune to slow-time
+
+        # Boss fires
+        for shot in self.boss.drain_shots():
+            self.alien_bullets.add(AlienBullet(*shot))
+
+        # Player bullets → boss
+        for ball in list(self.balls):
+            if ball.rect.colliderect(self.boss.rect):
+                ball.kill()
+                self._ball_queue_remove(ball)
+                if self.boss.take_hit():
+                    # Boss defeated — big explosion burst
+                    cx, cy = self.boss.rect.center
+                    for _ in range(7):
+                        ox = random.randint(-55, 55)
+                        oy = random.randint(-55, 55)
+                        self.explosions.add(Explosion(cx + ox, cy + oy))
+                    self._spawn_particles(cx, cy, count=40,
+                                         colors=[(255, 100, 255), (200, 50, 255),
+                                                 (255, 215,   0), (255,  80,  80)])
+                    self.game_score += self.boss.SCORE
+                    if self.game_score > self.best_score:
+                        self.best_score = self.game_score
+                        ScoreManager.save(self.best_score)
+                    self.hit_sound.play()
+                    self.boss = None
+                    self._start_wave(self.wave + 1)
+                    return   # start fresh next frame
+                else:
+                    self.hit_sound.play()
+
+        # Boss body collides with fighter
+        if self.boss and self.boss.rect.colliderect(self.fighter.rect):
+            self._take_damage()
+
+    def _maybe_drop_powerup(self, cx: int, cy: int):
+        """25 % chance to drop a random power-up when an alien dies."""
+        if random.random() > 0.25:
+            return
+        roll = random.random()
+        if   roll < 0.40:  pu = TripleShotPowerUp(cx, cy)
+        elif roll < 0.72:  pu = SlowTimePowerUp(cx, cy)
+        else:              pu = ShieldPowerUp(cx, cy)
+        self.powerups.add(pu)
+
+    def _apply_powerup(self, pu):
+        """Activate the collected power-up effect."""
+        if isinstance(pu, TripleShotPowerUp):
+            self._triple_shot_timer = TripleShotPowerUp.DURATION
+        elif isinstance(pu, ShieldPowerUp):
+            self._shield_active = True
+        elif isinstance(pu, SlowTimePowerUp):
+            self._slow_time_timer = SlowTimePowerUp.DURATION
+        self.powerup_sound.play()
+
+    def _take_damage(self):
+        """Subtract one life (or absorb with shield); trigger visual feedback; check game-over."""
+        if self._shield_active:
+            # Shield absorbs the hit
+            self._shield_active = False
+            self.flash_timer   = 6
+            self._shake_timer  = 2
+            return
+        self.lives       -= 1
+        self.flash_timer  = 20
+        self._shake_timer = 5
+        self.lose_life_sound.play()
+        if self.lives <= 0:
+            self.state = GameState.GAME_OVER
+
+    def _spawn_particles(self, cx: int, cy: int, count: int = 12, colors=None):
+        """Emit *count* debris particles from (cx, cy)."""
+        if colors is None:
+            colors = [(255, 220, 0), (255, 140, 0), (255, 70, 0), (255, 255, 100)]
+        for _ in range(count):
+            angle = random.uniform(0, math.tau)
+            speed = random.uniform(60, 190)
+            life  = random.uniform(0.35, 0.65)
+            self._particles.append({
+                'x': float(cx), 'y': float(cy),
+                'vx': math.cos(angle) * speed,
+                'vy': math.sin(angle) * speed,
+                'life': life, 'max_life': life,
+                'color': random.choice(colors),
+                'size': random.randint(2, 5),
+            })
 
     # ------------------------------------------------------------------
     # Draw
@@ -488,18 +673,59 @@ class Game:
         """Draw all game objects and effects onto the canvas, then blit to screen with shake."""
         cv = self._canvas
 
-        # Draw the game world onto the off-screen canvas
         cv.blit(self.background, (0, 0))
+
+        # Boss
+        if self.boss:
+            cv.blit(self.boss.image, self.boss.rect)
+
         cv.blit(self.fighter.image, self.fighter.rect)
         self.aliens.draw(cv)
         self.balls.draw(cv)
+        self.alien_bullets.draw(cv)
+        self.powerups.draw(cv)
         self.explosions.draw(cv)
         self._draw_particles(cv)
+
+        # Shield ring around fighter
+        if self._shield_active:
+            scx, scy = self.fighter.rect.center
+            r = max(self.fighter.width, self.fighter.height) // 2 + 11
+            pulse = 0.55 + 0.45 * math.sin(pygame.time.get_ticks() / 180.0)
+            a     = int(140 * pulse)
+            _sh = pygame.Surface((r * 2 + 4, r * 2 + 4), pygame.SRCALPHA)
+            pygame.draw.circle(_sh, (70, 150, 255, a), (r + 2, r + 2), r, 3)
+            cv.blit(_sh, (scx - r - 2, scy - r - 2))
+
+        # Slow-time blue tint overlay
+        if self._slow_time_timer > 0:
+            _st = pygame.Surface((config.SCREEN_WIDTH, config.SCREEN_HEIGHT), pygame.SRCALPHA)
+            _st.fill((25, 45, 180, 22))
+            cv.blit(_st, (0, 0))
+
+        # Wave announcement banner (fades out in last 0.5 s)
+        if self._wave_banner_timer > 0:
+            alpha = 255
+            if self._wave_banner_timer < 0.5:
+                alpha = int(255 * self._wave_banner_timer / 0.5)
+            is_boss = (self.wave % 5 == 0)
+            banner_txt   = f"BOSS WAVE  {self.wave}!" if is_boss else f"WAVE  {self.wave}"
+            banner_color = (255, 55, 55)  if is_boss else (255, 215, 50)
+            sub_txt      = "Defeat the boss!"        if is_boss else "New aliens incoming!"
+            banner = self.wave_font.render(banner_txt, True, banner_color)
+            banner.set_alpha(alpha)
+            sub = self.game_font.render(sub_txt, True, (200, 200, 200))
+            sub.set_alpha(alpha)
+            bx = config.SCREEN_WIDTH  // 2 - banner.get_width() // 2
+            by = config.SCREEN_HEIGHT // 3 - banner.get_height() // 2
+            cv.blit(banner, (bx, by))
+            cv.blit(sub, sub.get_rect(centerx=config.SCREEN_WIDTH // 2,
+                                      top=by + banner.get_height() + 4))
 
         # Red tint flash when a life is lost — SRCALPHA ensures proper per-pixel blending
         if self.flash_timer > 0:
             alpha = int(self.flash_timer * 4.5)   # max ~90 at timer=20 — subtle tint only
-            flash_surface = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
+            flash_surface = pygame.Surface((config.SCREEN_WIDTH, config.SCREEN_HEIGHT), pygame.SRCALPHA)
             flash_surface.fill((255, 0, 0, alpha))
             cv.blit(flash_surface, (0, 0))
             self.flash_timer -= 1
@@ -514,6 +740,8 @@ class Game:
         else:
             ox, oy = 0, 0
 
+        # pygame.SCALED handles all upscaling — just blit the canvas directly.
+        # The OS never gets a chance to apply blurry compositor scaling.
         self.screen.fill((0, 0, 0))          # black border visible only during shake
         self.screen.blit(cv, (ox, oy))
 
@@ -541,9 +769,13 @@ class Game:
                              (int(p['x']) - s // 2, int(p['y']) - s // 2, s, s))
 
     def _draw_hud(self, surface: pygame.Surface):
-        """Draw the heads-up display: score, best score, lives (heart icons), and dash indicator."""
+        """Draw HUD: score, wave, lives, dash bar, boss HP bar, power-up timers."""
+        self._draw_boss_hp_bar(surface)
+        self._draw_powerup_hud(surface)
+
         score_text = self.game_font.render(
-            f"Score: {self.game_score}   Best: {self.best_score}   Lives:",
+            f"Score: {self.game_score}   Best: {self.best_score}"
+            f"   Wave: {self.wave}   Lives:",
             True, 'white'
         )
         surface.blit(score_text, (20, 20))
@@ -570,6 +802,54 @@ class Game:
             pygame.transform.scale(label, (int(label.get_width() * 0.6), int(label.get_height() * 0.6))),
             (bar_x + bar_w + 6, bar_y - 2)
         )
+
+    def _draw_boss_hp_bar(self, surface: pygame.Surface):
+        """Draw the boss HP bar at the bottom of the screen (only during boss fights)."""
+        if not self.boss:
+            return
+        ratio  = self.boss.hp_ratio
+        bar_w  = min(520, config.SCREEN_WIDTH - 80)
+        bar_h  = 22
+        bx     = config.SCREEN_WIDTH  // 2 - bar_w // 2
+        by     = config.SCREEN_HEIGHT - 44
+
+        # Background track
+        pygame.draw.rect(surface, (30, 8, 45),  (bx - 2, by - 2, bar_w + 4, bar_h + 4), border_radius=5)
+        pygame.draw.rect(surface, (55, 18, 75), (bx, by, bar_w, bar_h), border_radius=4)
+
+        # HP fill — colour shifts green → yellow → red as HP drops
+        if ratio > 0:
+            fill_w = max(1, int(bar_w * ratio))
+            if   ratio > 0.66: color = (50, 200, 55)
+            elif ratio > 0.33: color = (225, 175, 0)
+            else:              color = (215, 38, 38)
+            pygame.draw.rect(surface, color, (bx, by, fill_w, bar_h), border_radius=4)
+
+        # Glowing border
+        pygame.draw.rect(surface, (175, 28, 215), (bx, by, bar_w, bar_h), 2, border_radius=4)
+
+        # Label above bar
+        lbl = self.game_font.render(
+            f"BOSS  HP: {self.boss.hp} / {self.boss.max_hp}", True, (215, 175, 255))
+        surface.blit(lbl, lbl.get_rect(
+            centerx=config.SCREEN_WIDTH // 2, bottom=by - 5))
+
+    def _draw_powerup_hud(self, surface: pygame.Surface):
+        """Draw active power-up timers at the top-right of the screen."""
+        lines = []
+        if self._triple_shot_timer > 0:
+            lines.append((f"3x SHOT  {self._triple_shot_timer:.1f}s", (255, 210, 0)))
+        if self._shield_active:
+            lines.append(("SHIELD  ACTIVE", (70, 150, 255)))
+        if self._slow_time_timer > 0:
+            lines.append((f"SLOW TIME  {self._slow_time_timer:.1f}s", (165, 75, 255)))
+
+        x = config.SCREEN_WIDTH - 18
+        y = 20
+        for text, color in lines:
+            surf = self.game_font.render(text, True, color)
+            surface.blit(surf, (x - surf.get_width(), y))
+            y += surf.get_height() + 4
 
     def _draw_start_screen(self):
         """Draw the initial start screen with title, prompt, and settings button."""
@@ -667,10 +947,13 @@ class Game:
         cy = self.screen_height // 2
 
         game_over_text = self.game_font.render("Game Over", True, 'white')
-        self.screen.blit(game_over_text, game_over_text.get_rect(center=(cx, cy - 80)))
+        self.screen.blit(game_over_text, game_over_text.get_rect(center=(cx, cy - 90)))
 
         score_text = self.game_font.render(f"Score: {self.game_score}", True, 'white')
-        self.screen.blit(score_text, score_text.get_rect(center=(cx, cy - 40)))
+        self.screen.blit(score_text, score_text.get_rect(center=(cx, cy - 55)))
+
+        wave_text = self.game_font.render(f"Wave reached: {self.wave}", True, (200, 200, 100))
+        self.screen.blit(wave_text, wave_text.get_rect(center=(cx, cy - 20)))
 
         pygame.draw.rect(self.screen, 'green', self.try_again_rect, border_radius=8)
         try_again_text = self.game_font.render("Try Again", True, 'white')
@@ -711,7 +994,7 @@ class Game:
             self.game_font.render("RESOLUTION", True, (160, 160, 160)),
             (lay['res_rects'][0].x, lay['res_rects'][0].y - 28)
         )
-        res_labels = ["1024×768", "1280×720", "1920×1080"]
+        res_labels = ["1024×768", "1280×720", "1920×1080", "2560×1440"]
         for i, (rect, lbl) in enumerate(zip(lay['res_rects'], res_labels)):
             color = (0, 150, 210) if i == s.resolution_index else (50, 50, 68)
             pygame.draw.rect(self.screen, color, rect, border_radius=8)

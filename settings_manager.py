@@ -3,7 +3,7 @@ import os
 
 SETTINGS_FILE = 'data/settings.json'
 
-RESOLUTIONS = [(1024, 768), (1280, 720), (1920, 1080)]
+RESOLUTIONS = [(1024, 768), (1280, 720), (1920, 1080), (2560, 1440)]
 
 DIFFICULTY_CONFIG = {
     'easy':   {'alien_speed_mult': 0.65, 'alien_count': 2},
