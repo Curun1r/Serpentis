@@ -5,12 +5,17 @@ from config import FIGHTER_SPEED, FIGHTER_SCALE
 from assets import Assets
 
 DASH_MULTIPLIER = 4.0   # dash is 4× normal speed
-DASH_DURATION   = 0.15  # seconds the dash lasts
-DASH_COOLDOWN   = 0.8   # seconds before can dash again
+DASH_DURATION   = 0.15  # seconds the dash lasts (baseline)
+DASH_COOLDOWN   = 0.8   # seconds before can dash again (baseline)
 
 
 class Fighter(Sprite):
-    def __init__(self):
+    def __init__(self, ship=None):
+        """Create the player fighter.
+
+        *ship* is an optional ShipConfig that overrides speed, dash timing, and
+        firing behaviour.  Pass None (or omit) to use the balanced baseline.
+        """
         super().__init__()
 
         # Fetch from cache — avoids reloading if Fighter is recreated each round
@@ -24,7 +29,15 @@ class Fighter(Sprite):
         self.y = float(config.SCREEN_HEIGHT - self.height)
         self.rect = self.image.get_rect(x=int(self.x), y=int(self.y))
 
-        self.speed = FIGHTER_SPEED
+        # Apply ship-specific multipliers (defaults to 1× if no ship given)
+        speed_m  = ship.speed_mult         if ship else 1.0
+        cd_m     = ship.dash_cooldown_mult if ship else 1.0
+        dur_m    = ship.dash_duration_mult if ship else 1.0
+
+        self.speed          = FIGHTER_SPEED * speed_m
+        self._DASH_COOLDOWN = DASH_COOLDOWN * cd_m
+        self._DASH_DURATION = DASH_DURATION * dur_m
+
         self.is_moving_left = self.is_moving_right = False
         self.is_moving_up = self.is_moving_down = False
 
@@ -56,8 +69,8 @@ class Fighter(Sprite):
         length = (vx ** 2 + vy ** 2) ** 0.5
         self._dash_vx = vx / length
         self._dash_vy = vy / length
-        self._dash_timer    = DASH_DURATION
-        self._dash_cooldown = DASH_COOLDOWN
+        self._dash_timer    = self._DASH_DURATION
+        self._dash_cooldown = self._DASH_COOLDOWN
 
     @property
     def is_dashing(self) -> bool:
@@ -66,7 +79,7 @@ class Fighter(Sprite):
     @property
     def dash_cooldown_ratio(self) -> float:
         """0.0 = ready, 1.0 = just used. For HUD indicator."""
-        return self._dash_cooldown / DASH_COOLDOWN
+        return self._dash_cooldown / self._DASH_COOLDOWN
 
     # ------------------------------------------------------------------
     # Update — reads config.SCREEN_WIDTH/HEIGHT live so resolution changes apply

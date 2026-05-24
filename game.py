@@ -15,15 +15,17 @@ from assets import Assets
 from score_manager import ScoreManager
 from settings_manager import Settings, RESOLUTIONS
 from explosion import Explosion
+from ship import ShipConfig, SHIPS
 
 
 class GameState(Enum):
     """All possible game states."""
-    START     = "start"
-    PLAYING   = "playing"
-    PAUSED    = "paused"
-    GAME_OVER = "game_over"
-    SETTINGS  = "settings"
+    START       = "start"
+    SHIP_SELECT = "ship_select"
+    PLAYING     = "playing"
+    PAUSED      = "paused"
+    GAME_OVER   = "game_over"
+    SETTINGS    = "settings"
 
 
 # Fixed logical game-world resolution — sprites and physics always live in this space.
@@ -39,16 +41,30 @@ class Game:
         # pygame.SCALED lets pygame (not the OS compositor) handle HiDPI upscaling,
         # which prevents macOS/Windows from applying blurry bilinear filtering on top.
         s = Settings.get()
+        # Game-world / layout space is always 1280×720 — all positions are in these coords
         self.screen_width  = _LOGICAL_W
         self.screen_height = _LOGICAL_H
         config.SCREEN_WIDTH  = _LOGICAL_W
         config.SCREEN_HEIGHT = _LOGICAL_H
 
-        # FIX: parenthesise the flags correctly so windowed mode doesn't go fullscreen
+        # Physical display size (from settings; can differ from the logical canvas)
+        self._disp_w, self._disp_h = s.resolution
+        # Scale factors for transforming display-space mouse coords → logical (1280×720) coords
+        self._mouse_sx = _LOGICAL_W / self._disp_w
+        self._mouse_sy = _LOGICAL_H / self._disp_h
+        # Camera-shake offset (set by _draw, consumed by run)
+        self._shake_ox = 0
+        self._shake_oy = 0
+
+        # pygame.SCALED prevents the OS compositor from applying blurry bilinear filtering
+        # (critical on macOS Retina / HiDPI).  We run the display at the user-chosen physical
+        # resolution; our 1280×720 canvas is manually scaled to fill it each frame.
         _fs_flags = (pygame.FULLSCREEN | pygame.SCALED) if s.fullscreen else pygame.SCALED
-        self.screen = pygame.display.set_mode((_LOGICAL_W, _LOGICAL_H), _fs_flags)
-        self.game_font = pygame.font.Font(None, 36)
-        self.wave_font = pygame.font.Font(None, 86)   # large font for wave announcements
+        self.screen = pygame.display.set_mode((self._disp_w, self._disp_h), _fs_flags)
+        self.game_font  = pygame.font.Font(None, 36)
+        self.med_font   = pygame.font.Font(None, 52)   # ship names in selection cards
+        self.small_font = pygame.font.Font(None, 26)   # stat labels / table rows
+        self.wave_font  = pygame.font.Font(None, 86)   # large font for wave announcements
         self.clock = pygame.time.Clock()
 
         # Generate sounds via Assets cache — safe to call multiple times
@@ -66,8 +82,27 @@ class Game:
         raw_heart = Assets.get_image('image/heart.png')
         self.heart_icon = pygame.transform.smoothscale(raw_heart, (22, 22))
 
-        # Load best score from previous session, falls back to 0 if no file exists
-        self.best_score = ScoreManager.load()
+        # Pre-build fighter preview sprites for the ship-select cards (scaled down, colour-tinted)
+        raw_fighter = Assets.get_image('image/fighter.png')
+        fw, fh = raw_fighter.get_size()
+        _prev_h = 80
+        _prev_w = int(fw * (_prev_h / fh))
+        _prev_base = pygame.transform.scale(raw_fighter, (_prev_w, _prev_h))
+        self._ship_previews: list[pygame.Surface] = []
+        for _ship in SHIPS:
+            _s = _prev_base.copy()
+            _tint = pygame.Surface((_prev_w, _prev_h), pygame.SRCALPHA)
+            _tint.fill((*_ship.color, 90))
+            _s.blit(_tint, (0, 0))
+            self._ship_previews.append(_s)
+
+        # Load leaderboard from previous sessions
+        self.best_score, self.score_entries = ScoreManager.load()
+
+        # Ship-selection state
+        self._selected_ship: ShipConfig = SHIPS[0]
+        self._ship_cursor: int = 0   # index currently highlighted in select screen
+
         self.state = GameState.START
 
         # All screen-size-dependent button rects computed in one place
@@ -77,7 +112,7 @@ class Game:
         # Settings screen state
         self._vol_dragging = False
 
-        # Off-screen canvas for camera shake — always logical size; scaled to display at blit time
+        # Off-screen canvas — always logical size (1280×720); scaled to display each frame
         self._canvas      = pygame.Surface((_LOGICAL_W, _LOGICAL_H))
         self._shake_timer = 0   # frames remaining for camera shake
         self._particles: list[dict] = []
@@ -92,12 +127,17 @@ class Game:
         """Recompute all rects that depend on screen dimensions."""
         cx = self.screen_width  // 2
         cy = self.screen_height // 2
-        # Game-over buttons
-        self.try_again_rect = pygame.Rect(cx - 100, cy + 20, 200, 50)
-        self.quit_rect      = pygame.Rect(cx - 100, cy + 90, 200, 50)
-        # Start-screen buttons
-        self._settings_btn_rect  = pygame.Rect(cx - 70, cy + 50,  140, 40)
-        self._quit_start_rect    = pygame.Rect(cx - 70, cy + 102, 140, 40)
+
+        # ── Game-over buttons ─────────────────────────────
+        # Total width: 210 + 20 gap + 130 = 360; centred → start at cx-180
+        self.try_again_rect  = pygame.Rect(cx - 180, cy + 165, 210, 48)
+        self.menu_go_rect    = pygame.Rect(cx + 50,  cy + 165, 130, 48)
+
+        # ── Start-screen buttons (lower-right cluster) ────
+        # Scores occupy the lower-centre; buttons sit at bottom-right
+        self._play_btn_rect      = pygame.Rect(cx - 80, cy + 145, 160, 48)
+        self._settings_btn_rect  = pygame.Rect(cx - 80, cy + 203, 160, 40)
+        self._quit_start_rect    = pygame.Rect(cx - 80, cy + 253, 160, 40)
 
     def _apply_volume(self):
         """Push current volume from Settings to all sound objects."""
@@ -107,14 +147,31 @@ class Game:
             snd.set_volume(vol)
 
     def _apply_resolution(self):
-        """Apply the fullscreen flag stored in Settings to the display.
-        The logical resolution (_LOGICAL_W × _LOGICAL_H) never changes — pygame.SCALED
-        handles all upscaling so the image stays sharp on HiDPI / Retina displays."""
-        s     = Settings.get()
+        """Recreate the display at the resolution stored in Settings.
+
+        The logical canvas (1280×720) never changes — all game code draws at logical coords.
+        The display surface is sized to the user's chosen resolution; we scale the canvas
+        to fill it each frame.  pygame.SCALED prevents the OS compositor from adding blur.
+        """
+        s = Settings.get()
+        self._disp_w, self._disp_h = s.resolution
+        self._mouse_sx = _LOGICAL_W / self._disp_w
+        self._mouse_sy = _LOGICAL_H / self._disp_h
         flags = (pygame.FULLSCREEN | pygame.SCALED) if s.fullscreen else pygame.SCALED
-        self.screen = pygame.display.set_mode((_LOGICAL_W, _LOGICAL_H), flags)
-        # screen_width/height, config, background, and canvas all stay at logical size
+        self.screen = pygame.display.set_mode((self._disp_w, self._disp_h), flags)
         self._update_button_rects()
+
+    # ------------------------------------------------------------------
+    # Logical-coordinate helpers (transforms display-space → 1280×720 space)
+    # ------------------------------------------------------------------
+
+    def _lpos(self, pos: tuple[int, int]) -> tuple[int, int]:
+        """Convert a display-space position to logical (1280×720) coordinates."""
+        return (int(pos[0] * self._mouse_sx), int(pos[1] * self._mouse_sy))
+
+    def _lmouse(self) -> tuple[int, int]:
+        """Return the current mouse position in logical (1280×720) coordinates."""
+        return self._lpos(pygame.mouse.get_pos())
 
     def _toggle_fullscreen(self):
         """Flip the fullscreen flag and immediately apply it."""
@@ -129,7 +186,7 @@ class Game:
         self.lives             = STARTING_LIVES
         self.flash_timer       = 0
         self.wave              = 0   # set to 1 by _start_wave below
-        self.fighter           = Fighter()
+        self.fighter           = Fighter(ship=self._selected_ship)
         self.balls             = pygame.sprite.Group()
         self._ball_queue       = []
         self.explosions        = pygame.sprite.Group()
@@ -193,10 +250,17 @@ class Game:
                     sys.exit()
                 self._handle_event(event)
 
-            self.screen.blit(self.background, (0, 0))
+            # For non-gameplay states draw the background onto the canvas directly.
+            # (_draw() already does its own canvas clear for PLAYING/PAUSED.)
+            if self.state not in (GameState.PLAYING, GameState.PAUSED):
+                self._canvas.blit(self.background, (0, 0))
+                self._shake_ox = 0
+                self._shake_oy = 0
 
             if   self.state == GameState.START:
                 self._draw_start_screen()
+            elif self.state == GameState.SHIP_SELECT:
+                self._draw_ship_select_screen()
             elif self.state == GameState.PLAYING:
                 self._update(dt)
                 self._draw()
@@ -207,6 +271,16 @@ class Game:
                 self._draw_game_over_screen()
             elif self.state == GameState.SETTINGS:
                 self._draw_settings_screen()
+
+            # Scale the logical canvas (1280×720) up to the chosen display resolution and
+            # apply the camera-shake offset computed by _draw().
+            if self._disp_w != _LOGICAL_W or self._disp_h != _LOGICAL_H:
+                scaled = pygame.transform.smoothscale(
+                    self._canvas, (self._disp_w, self._disp_h))
+            else:
+                scaled = self._canvas
+            self.screen.fill((0, 0, 0))
+            self.screen.blit(scaled, (self._shake_ox, self._shake_oy))
 
             pygame.display.update()
 
@@ -223,7 +297,17 @@ class Game:
 
             if self.state == GameState.START:
                 if event.key == pygame.K_SPACE:
-                    self.state = GameState.PLAYING
+                    self.state = GameState.SHIP_SELECT
+
+            elif self.state == GameState.SHIP_SELECT:
+                if event.key == pygame.K_ESCAPE:
+                    self.state = GameState.START
+                elif event.key in (pygame.K_LEFT, pygame.K_a):
+                    self._ship_cursor = (self._ship_cursor - 1) % len(SHIPS)
+                elif event.key in (pygame.K_RIGHT, pygame.K_d):
+                    self._ship_cursor = (self._ship_cursor + 1) % len(SHIPS)
+                elif event.key in (pygame.K_SPACE, pygame.K_RETURN):
+                    self._confirm_ship_select()
 
             elif self.state == GameState.PLAYING:
                 if event.key in (pygame.K_LEFT,  pygame.K_a): self.fighter.move_left()
@@ -253,33 +337,39 @@ class Game:
                 if event.key in (pygame.K_DOWN,  pygame.K_s): self.fighter.is_moving_down  = False
 
         if event.type == pygame.MOUSEBUTTONDOWN:
+            lpos = self._lpos(event.pos)
             if self.state == GameState.PLAYING:
                 if event.button == 1:
                     self._shoot()
             elif self.state == GameState.PAUSED:
-                self._handle_pause_click(event.pos)
+                self._handle_pause_click(lpos)
             elif self.state == GameState.GAME_OVER:
-                if self.try_again_rect.collidepoint(event.pos):
+                if self.try_again_rect.collidepoint(lpos):
                     self._init_game()
                     self.state = GameState.PLAYING
-                if self.quit_rect.collidepoint(event.pos):
-                    pygame.quit()
-                    sys.exit()
+                elif self.menu_go_rect.collidepoint(lpos):
+                    self._init_game()
+                    self.state = GameState.START
             elif self.state == GameState.START:
-                if self._settings_btn_rect.collidepoint(event.pos):
+                if self._play_btn_rect.collidepoint(lpos):
+                    self.state = GameState.SHIP_SELECT
+                elif self._settings_btn_rect.collidepoint(lpos):
                     self.state = GameState.SETTINGS
-                elif self._quit_start_rect.collidepoint(event.pos):
+                elif self._quit_start_rect.collidepoint(lpos):
                     pygame.quit()
                     sys.exit()
+            elif self.state == GameState.SHIP_SELECT:
+                self._handle_ship_select_click(lpos)
             elif self.state == GameState.SETTINGS:
-                self._handle_settings_click(event.pos)
+                self._handle_settings_click(lpos)
 
         if event.type == pygame.MOUSEMOTION:
             if self._vol_dragging:
+                lx = self._lpos(event.pos)[0]
                 if self.state == GameState.SETTINGS:
-                    self._update_volume_from_mouse(event.pos[0])
+                    self._update_volume_from_mouse(lx)
                 elif self.state == GameState.PAUSED:
-                    self._update_pause_volume_from_mouse(event.pos[0])
+                    self._update_pause_volume_from_mouse(lx)
 
         if event.type == pygame.MOUSEBUTTONUP:
             if self._vol_dragging:
@@ -318,7 +408,7 @@ class Game:
             for i in range(3)
         ]
 
-        fullscreen_rect = pygame.Rect(cx - 110, 508, 220, 42)
+        fullscreen_rect = pygame.Rect(cx - 150, 508, 300, 42)
         back_rect       = pygame.Rect(cx - 80,  568, 160, 50)
 
         return {
@@ -443,17 +533,56 @@ class Game:
         self._apply_volume()
 
     # ------------------------------------------------------------------
+    # Ship-selection helpers
+    # ------------------------------------------------------------------
+
+    def _ship_card_rects(self) -> list[pygame.Rect]:
+        """Return the bounding Rect for each ship card on the select screen."""
+        CARD_W, CARD_H = 265, 375
+        GAP   = 45
+        total = len(SHIPS) * CARD_W + (len(SHIPS) - 1) * GAP
+        start_x = (config.SCREEN_WIDTH - total) // 2
+        card_y  = 118
+        return [
+            pygame.Rect(start_x + i * (CARD_W + GAP), card_y, CARD_W, CARD_H)
+            for i in range(len(SHIPS))
+        ]
+
+    def _confirm_ship_select(self):
+        """Lock in the highlighted ship and start a new game."""
+        self._selected_ship = SHIPS[self._ship_cursor]
+        self._init_game()
+        self.state = GameState.PLAYING
+
+    def _handle_ship_select_click(self, pos: tuple[int, int]):
+        rects = self._ship_card_rects()
+        for i, rect in enumerate(rects):
+            if rect.collidepoint(pos):
+                if i == self._ship_cursor:
+                    # Second click on already-highlighted card → confirm
+                    self._confirm_ship_select()
+                else:
+                    # First click → just highlight
+                    self._ship_cursor = i
+                return
+
+    # ------------------------------------------------------------------
     # Shooting helpers
     # ------------------------------------------------------------------
 
     def _shoot(self):
-        """Fire one bullet (or three when 3× power-up is active), FIFO-limited."""
+        """Fire bullets based on active power-up and ship characteristics, FIFO-limited."""
         if self._triple_shot_timer > 0:
+            # Triple-shot powerup always fires 3 bullets regardless of ship
             angles = [-18, 0, 18]
             limit  = 9
         else:
-            angles = [0]
-            limit  = 3
+            ship = self._selected_ship
+            if ship.default_shots == 2:
+                angles = [-10, 10]     # Hydra dual-cannon spread
+            else:
+                angles = [0]
+            limit = ship.max_bullets
 
         # Trim oldest bullets to stay within the queue limit
         while len(self._ball_queue) + len(angles) > limit:
@@ -647,6 +776,11 @@ class Game:
         self.lose_life_sound.play()
         if self.lives <= 0:
             self.state = GameState.GAME_OVER
+            # Persist the completed run to the leaderboard (once per session)
+            self.score_entries = ScoreManager.add_entry(
+                self.game_score, self.wave, self._selected_ship.name
+            )
+            self.best_score = max(self.best_score, self.game_score)
 
     def _spawn_particles(self, cx: int, cy: int, count: int = 12, colors=None):
         """Emit *count* debris particles from (cx, cy)."""
@@ -732,18 +866,15 @@ class Game:
 
         self._draw_hud(cv)
 
-        # Camera shake — pick a random offset while timer is active
+        # Camera shake — pick a random offset while timer is active.
+        # The offset is stored and applied by run() when blitting to the display.
         if self._shake_timer > 0:
-            ox = random.randint(-8, 8)
-            oy = random.randint(-5, 5)
+            self._shake_ox = random.randint(-8, 8)
+            self._shake_oy = random.randint(-5, 5)
             self._shake_timer -= 1
         else:
-            ox, oy = 0, 0
-
-        # pygame.SCALED handles all upscaling — just blit the canvas directly.
-        # The OS never gets a chance to apply blurry compositor scaling.
-        self.screen.fill((0, 0, 0))          # black border visible only during shake
-        self.screen.blit(cv, (ox, oy))
+            self._shake_ox = 0
+            self._shake_oy = 0
 
     def _update_particles(self, dt: float):
         """Advance all active particles and discard expired ones."""
@@ -851,27 +982,168 @@ class Game:
             surface.blit(surf, (x - surf.get_width(), y))
             y += surf.get_height() + 4
 
+    def _draw_ship_select_screen(self):
+        """Three side-by-side ship cards; click once to highlight, again (or SPACE) to confirm."""
+        screen = self._canvas   # draw to logical canvas
+        sw = config.SCREEN_WIDTH
+
+        # ── Title ────────────────────────────────────────────────────────
+        title = self.med_font.render("SELECT YOUR SHIP", True, (210, 210, 255))
+        screen.blit(title, title.get_rect(centerx=sw // 2, top=22))
+
+        hint = self.small_font.render(
+            "← → to browse   •   click to select   •   SPACE / second click to confirm   •   ESC to go back",
+            True, (90, 90, 110))
+        screen.blit(hint, hint.get_rect(centerx=sw // 2, top=70))
+
+        # ── Cards ─────────────────────────────────────────────────────────
+        rects   = self._ship_card_rects()
+        mouse   = self._lmouse()
+        CARD_W  = rects[0].w
+        CARD_H  = rects[0].h
+
+        for i, (ship, rect) in enumerate(zip(SHIPS, rects)):
+            is_sel  = (i == self._ship_cursor)
+            is_hover = rect.collidepoint(mouse) and not is_sel
+
+            # Card background
+            bg_alpha = 230 if is_sel else (180 if is_hover else 160)
+            card_surf = pygame.Surface((CARD_W, CARD_H), pygame.SRCALPHA)
+            card_surf.fill((15, 15, 35, bg_alpha))
+            screen.blit(card_surf, rect.topleft)
+
+            # Border
+            border_col = ship.color if is_sel else (70, 70, 90)
+            border_w   = 3 if is_sel else 1
+            pygame.draw.rect(screen, border_col, rect, border_w, border_radius=10)
+
+            # Subtle inner glow on selected card
+            if is_sel:
+                glow = pygame.Surface((CARD_W - 6, CARD_H - 6), pygame.SRCALPHA)
+                glow.fill((*ship.color, 18))
+                screen.blit(glow, (rect.x + 3, rect.y + 3))
+
+            cx = rect.centerx
+
+            # Ship name
+            name_col  = ship.color if is_sel else (160, 160, 185)
+            name_surf = self.med_font.render(ship.name.upper(), True, name_col)
+            screen.blit(name_surf, name_surf.get_rect(centerx=cx, top=rect.y + 14))
+
+            # Tagline
+            tag_surf = self.small_font.render(ship.tagline, True, (120, 120, 140))
+            screen.blit(tag_surf, tag_surf.get_rect(centerx=cx, top=rect.y + 62))
+
+            # Divider
+            pygame.draw.line(screen, (50, 50, 75),
+                             (rect.x + 16, rect.y + 86), (rect.right - 16, rect.y + 86))
+
+            # Fighter preview (tinted)
+            prev = self._ship_previews[i]
+            pw, ph = prev.get_size()
+            screen.blit(prev, (cx - pw // 2, rect.y + 96))
+
+            # Stat bars
+            BAR_W, BAR_H = 148, 9
+            bar_x = rect.x + 56
+            stat_y = rect.y + 196
+            for label, val in (("SPD", ship.stat_speed),
+                               ("GUN", ship.stat_fire),
+                               ("DSH", ship.stat_dash)):
+                lbl = self.small_font.render(label, True, (130, 130, 155))
+                screen.blit(lbl, (rect.x + 14, stat_y - 1))
+                pygame.draw.rect(screen, (35, 35, 55),
+                                 (bar_x, stat_y + 1, BAR_W, BAR_H), border_radius=3)
+                fill_w = int(BAR_W * val / 10)
+                if fill_w > 0:
+                    col = ship.color if is_sel else (90, 90, 115)
+                    pygame.draw.rect(screen, col,
+                                     (bar_x, stat_y + 1, fill_w, BAR_H), border_radius=3)
+                stat_y += 28
+
+            # "SELECTED" badge at bottom of highlighted card
+            if is_sel:
+                badge_rect = pygame.Rect(rect.x + 20, rect.bottom - 44, CARD_W - 40, 30)
+                badge_surf = pygame.Surface((badge_rect.w, badge_rect.h), pygame.SRCALPHA)
+                badge_surf.fill((*ship.color, 200))
+                screen.blit(badge_surf, badge_rect.topleft)
+                pygame.draw.rect(screen, (255, 255, 255), badge_rect, 1, border_radius=4)
+                badge_txt = self.small_font.render("SELECTED  —  SPACE TO START", True, (10, 10, 20))
+                screen.blit(badge_txt, badge_txt.get_rect(center=badge_rect.center))
+
     def _draw_start_screen(self):
-        """Draw the initial start screen with title, prompt, and settings button."""
+        """Main menu: game title, top-5 leaderboard, and action buttons."""
+        screen = self._canvas   # draw to logical canvas
         cx = self.screen_width  // 2
         cy = self.screen_height // 2
+        mouse = self._lmouse()
 
-        title_text = self.game_font.render("Space Shooter", True, 'white')
-        self.screen.blit(title_text, title_text.get_rect(center=(cx, cy - 40)))
+        # ── Title ─────────────────────────────────────────────────────────
+        title = self.wave_font.render("SERPENTIS", True, (180, 120, 255))
+        screen.blit(title, title.get_rect(centerx=cx, top=36))
 
-        start_text = self.game_font.render("Press SPACE to start", True, 'yellow')
-        self.screen.blit(start_text, start_text.get_rect(center=(cx, cy + 10)))
+        sub = self.small_font.render("A Python space shooter", True, (90, 90, 110))
+        screen.blit(sub, sub.get_rect(centerx=cx, top=106))
 
-        pygame.draw.rect(self.screen, (60, 60, 90), self._settings_btn_rect, border_radius=8)
-        btn_text = self.game_font.render("Settings", True, 'white')
-        self.screen.blit(btn_text, btn_text.get_rect(center=self._settings_btn_rect.center))
+        # ── Top-5 leaderboard panel ───────────────────────────────────────
+        TABLE_W, TABLE_H = 580, 220
+        table_x = cx - TABLE_W // 2
+        table_y = 138
 
-        pygame.draw.rect(self.screen, (110, 35, 35), self._quit_start_rect, border_radius=8)
-        quit_text = self.game_font.render("Quit", True, 'white')
-        self.screen.blit(quit_text, quit_text.get_rect(center=self._quit_start_rect.center))
+        panel = pygame.Surface((TABLE_W, TABLE_H), pygame.SRCALPHA)
+        panel.fill((14, 14, 30, 210))
+        screen.blit(panel, (table_x, table_y))
+        pygame.draw.rect(screen, (55, 55, 85),
+                         pygame.Rect(table_x, table_y, TABLE_W, TABLE_H), 1, border_radius=8)
+
+        hdr = self.small_font.render("HIGH  SCORES", True, (160, 130, 255))
+        screen.blit(hdr, hdr.get_rect(centerx=cx, top=table_y + 10))
+        pygame.draw.line(screen, (50, 50, 80),
+                         (table_x + 16, table_y + 32), (table_x + TABLE_W - 16, table_y + 32))
+
+        if self.score_entries:
+            row_y  = table_y + 40
+            for idx, entry in enumerate(self.score_entries[:5]):
+                rank_col = [(255, 215, 0), (192, 192, 192), (205, 127, 50),
+                            (160, 160, 180), (140, 140, 160)][idx]
+                rank_t = self.small_font.render(f"#{idx+1}", True, rank_col)
+                screen.blit(rank_t, (table_x + 18, row_y))
+
+                score_t = self.small_font.render(f"{entry['score']:>6}", True, (220, 220, 240))
+                screen.blit(score_t, (table_x + 60, row_y))
+
+                wave_t = self.small_font.render(f"W.{entry['wave']:>2}", True, (160, 200, 160))
+                screen.blit(wave_t, (table_x + 148, row_y))
+
+                ship_col = next((s.color for s in SHIPS if s.name == entry.get('ship')),
+                                (160, 160, 180))
+                ship_t = self.small_font.render(f"{entry.get('ship', '?'):<8}", True, ship_col)
+                screen.blit(ship_t, (table_x + 218, row_y))
+
+                date_t = self.small_font.render(entry.get('date', ''), True, (90, 90, 110))
+                screen.blit(date_t, (table_x + 370, row_y))
+                row_y += 30
+        else:
+            empty = self.small_font.render("No records yet — be the first!", True, (70, 70, 90))
+            screen.blit(empty, empty.get_rect(centerx=cx, top=table_y + 80))
+
+        # ── Buttons ───────────────────────────────────────────────────────
+        def _btn(rect, label, base_col, hover_col):
+            col = hover_col if rect.collidepoint(mouse) else base_col
+            pygame.draw.rect(screen, col, rect, border_radius=8)
+            t = self.game_font.render(label, True, 'white')
+            screen.blit(t, t.get_rect(center=rect.center))
+
+        _btn(self._play_btn_rect,     "▶  PLAY",   (35, 120, 50),  (50, 170, 70))
+        _btn(self._settings_btn_rect, "Settings",  (55, 55, 80),   (80, 80, 115))
+        _btn(self._quit_start_rect,   "Quit",      (100, 30, 30),  (150, 45, 45))
+
+        hint = self.small_font.render("SPACE to play", True, (65, 65, 80))
+        screen.blit(hint, hint.get_rect(centerx=cx, bottom=self.screen_height - 10))
 
     def _draw_pause_overlay(self):
         """Draw a full pause menu panel over the frozen game screen."""
+        screen = self._canvas   # draw to logical canvas
         s   = Settings.get()
         lay = self._pause_layout()
         cx  = self.screen_width // 2
@@ -879,41 +1151,41 @@ class Game:
         # ── Dark background dimmer ────────────────────────────────────
         dimmer = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
         dimmer.fill((0, 0, 0, 155))
-        self.screen.blit(dimmer, (0, 0))
+        screen.blit(dimmer, (0, 0))
 
         # ── Panel background ──────────────────────────────────────────
         panel = lay['panel']
         panel_surf = pygame.Surface((panel.w, panel.h), pygame.SRCALPHA)
         panel_surf.fill((18, 18, 32, 235))
-        self.screen.blit(panel_surf, (panel.x, panel.y))
-        pygame.draw.rect(self.screen, (65, 65, 100), panel, 2, border_radius=12)
+        screen.blit(panel_surf, (panel.x, panel.y))
+        pygame.draw.rect(screen, (65, 65, 100), panel, 2, border_radius=12)
 
         # ── Title ─────────────────────────────────────────────────────
         title = self.game_font.render("PAUSED", True, (220, 220, 255))
-        self.screen.blit(title, title.get_rect(center=(cx, panel.y + 42)))
+        screen.blit(title, title.get_rect(center=(cx, panel.y + 42)))
 
         # ── Divider ───────────────────────────────────────────────────
-        pygame.draw.line(self.screen, (55, 55, 85),
+        pygame.draw.line(screen, (55, 55, 85),
                          (panel.x + 20, panel.y + 66),
                          (panel.right - 20, panel.y + 66))
 
         # ── Volume label ──────────────────────────────────────────────
         vol_label = self.game_font.render("VOLUME", True, (150, 150, 175))
-        self.screen.blit(vol_label, (lay['slider_x'], lay['slider_y'] - 26))
+        screen.blit(vol_label, (lay['slider_x'], lay['slider_y'] - 26))
 
         # ── Volume slider ─────────────────────────────────────────────
         sx, sy, sw, sh = lay['slider_x'], lay['slider_y'], lay['slider_w'], lay['slider_h']
-        pygame.draw.rect(self.screen, (55, 55, 70), (sx, sy, sw, sh), border_radius=6)
+        pygame.draw.rect(screen, (55, 55, 70), (sx, sy, sw, sh), border_radius=6)
         fill_w = int(sw * s.volume)
         if fill_w > 0:
-            pygame.draw.rect(self.screen, (0, 190, 255), (sx, sy, fill_w, sh), border_radius=6)
+            pygame.draw.rect(screen, (0, 190, 255), (sx, sy, fill_w, sh), border_radius=6)
         knob_x = sx + fill_w
-        pygame.draw.circle(self.screen, (210, 210, 210), (knob_x, sy + sh // 2), 9)
+        pygame.draw.circle(screen, (210, 210, 210), (knob_x, sy + sh // 2), 9)
         pct = self.game_font.render(f"{int(s.volume * 100)}%", True, 'white')
-        self.screen.blit(pct, (sx + sw + 14, sy - 4))
+        screen.blit(pct, (sx + sw + 14, sy - 4))
 
         # ── Buttons ───────────────────────────────────────────────────
-        mouse_pos = pygame.mouse.get_pos()
+        mouse_pos = self._lmouse()
         btns = [
             (lay['resume_rect'],  "RESUME",     (35, 130, 55),  (55, 180, 75)),
             (lay['restart_rect'], "RESTART",    (40,  55, 130), (60,  85, 180)),
@@ -921,90 +1193,148 @@ class Game:
         ]
         for rect, label, color, hover_color in btns:
             c = hover_color if rect.collidepoint(mouse_pos) else color
-            pygame.draw.rect(self.screen, c, rect, border_radius=8)
-            pygame.draw.rect(self.screen, (90, 90, 130), rect, 1, border_radius=8)
+            pygame.draw.rect(screen, c, rect, border_radius=8)
+            pygame.draw.rect(screen, (90, 90, 130), rect, 1, border_radius=8)
             t = self.game_font.render(label, True, 'white')
-            self.screen.blit(t, t.get_rect(center=rect.center))
+            screen.blit(t, t.get_rect(center=rect.center))
 
         # Thin divider before destructive QUIT button
         sep_y = lay['quit_rect'].y - 12
-        pygame.draw.line(self.screen, (55, 55, 85),
+        pygame.draw.line(screen, (55, 55, 85),
                          (panel.x + 30, sep_y), (panel.right - 30, sep_y))
         q_rect = lay['quit_rect']
         q_color = (185, 45, 45) if q_rect.collidepoint(mouse_pos) else (130, 35, 35)
-        pygame.draw.rect(self.screen, q_color, q_rect, border_radius=8)
-        pygame.draw.rect(self.screen, (200, 60, 60), q_rect, 1, border_radius=8)
+        pygame.draw.rect(screen, q_color, q_rect, border_radius=8)
+        pygame.draw.rect(screen, (200, 60, 60), q_rect, 1, border_radius=8)
         qt = self.game_font.render("QUIT", True, 'white')
-        self.screen.blit(qt, qt.get_rect(center=q_rect.center))
+        screen.blit(qt, qt.get_rect(center=q_rect.center))
 
         # ── ESC hint ──────────────────────────────────────────────────
         hint = self.game_font.render("ESC  /  P  to resume", True, (80, 80, 105))
-        self.screen.blit(hint, hint.get_rect(center=(cx, panel.bottom + 20)))
+        screen.blit(hint, hint.get_rect(center=(cx, panel.bottom + 20)))
 
     def _draw_game_over_screen(self):
-        """Draw the game over screen with final score and action buttons."""
-        cx = self.screen_width  // 2
-        cy = self.screen_height // 2
+        """Game-over screen: run summary + top-5 leaderboard + action buttons."""
+        screen = self._canvas   # draw to logical canvas
+        cx    = self.screen_width  // 2
+        cy    = self.screen_height // 2
+        mouse = self._lmouse()
 
-        game_over_text = self.game_font.render("Game Over", True, 'white')
-        self.screen.blit(game_over_text, game_over_text.get_rect(center=(cx, cy - 90)))
+        # ── Run summary ───────────────────────────────────────────────────
+        go_surf = self.wave_font.render("GAME  OVER", True, (255, 80, 80))
+        screen.blit(go_surf, go_surf.get_rect(centerx=cx, top=28))
 
-        score_text = self.game_font.render(f"Score: {self.game_score}", True, 'white')
-        self.screen.blit(score_text, score_text.get_rect(center=(cx, cy - 55)))
+        details = (f"Score: {self.game_score}    Wave: {self.wave}"
+                   f"    Ship: {self._selected_ship.name}")
+        det_surf = self.game_font.render(details, True, (210, 210, 230))
+        screen.blit(det_surf, det_surf.get_rect(centerx=cx, top=106))
 
-        wave_text = self.game_font.render(f"Wave reached: {self.wave}", True, (200, 200, 100))
-        self.screen.blit(wave_text, wave_text.get_rect(center=(cx, cy - 20)))
+        # New-best badge
+        if self.score_entries and self.score_entries[0]['score'] == self.game_score:
+            badge = self.game_font.render("★  NEW  BEST!", True, (255, 215, 0))
+            screen.blit(badge, badge.get_rect(centerx=cx, top=140))
 
-        pygame.draw.rect(self.screen, 'green', self.try_again_rect, border_radius=8)
-        try_again_text = self.game_font.render("Try Again", True, 'white')
-        self.screen.blit(try_again_text, try_again_text.get_rect(center=self.try_again_rect.center))
+        # ── Leaderboard panel ─────────────────────────────────────────────
+        TABLE_W, TABLE_H = 580, 198
+        table_x = cx - TABLE_W // 2
+        table_y = 172
 
-        pygame.draw.rect(self.screen, (180, 50, 50), self.quit_rect, border_radius=8)
-        quit_text = self.game_font.render("Quit", True, 'white')
-        self.screen.blit(quit_text, quit_text.get_rect(center=self.quit_rect.center))
+        panel = pygame.Surface((TABLE_W, TABLE_H), pygame.SRCALPHA)
+        panel.fill((14, 14, 30, 215))
+        screen.blit(panel, (table_x, table_y))
+        pygame.draw.rect(screen, (60, 60, 90),
+                         pygame.Rect(table_x, table_y, TABLE_W, TABLE_H), 1, border_radius=8)
+
+        hdr = self.small_font.render("TOP  SCORES", True, (160, 130, 255))
+        screen.blit(hdr, hdr.get_rect(centerx=cx, top=table_y + 8))
+        pygame.draw.line(screen, (50, 50, 80),
+                         (table_x + 16, table_y + 30), (table_x + TABLE_W - 16, table_y + 30))
+
+        row_y = table_y + 38
+        for idx, entry in enumerate(self.score_entries[:5]):
+            # Highlight the current run
+            is_this = (entry['score'] == self.game_score and
+                       entry.get('ship') == self._selected_ship.name)
+            rank_col = [(255, 215, 0), (192, 192, 192), (205, 127, 50),
+                        (160, 160, 180), (140, 140, 160)][idx]
+            txt_col  = (255, 255, 200) if is_this else (200, 200, 220)
+
+            screen.blit(
+                self.small_font.render(f"#{idx+1}", True, rank_col),
+                (table_x + 16, row_y))
+            screen.blit(
+                self.small_font.render(f"{entry['score']:>6}", True, txt_col),
+                (table_x + 58, row_y))
+            screen.blit(
+                self.small_font.render(f"W.{entry['wave']:>2}", True, (160, 200, 160)),
+                (table_x + 148, row_y))
+            ship_col = next((s.color for s in SHIPS if s.name == entry.get('ship')),
+                            (160, 160, 180))
+            screen.blit(
+                self.small_font.render(f"{entry.get('ship','?'):<8}", True, ship_col),
+                (table_x + 218, row_y))
+            screen.blit(
+                self.small_font.render(entry.get('date', ''), True, (85, 85, 105)),
+                (table_x + 368, row_y))
+            row_y += 29
+
+        # ── Buttons ───────────────────────────────────────────────────────
+        ta_col  = (50, 170, 70)  if self.try_again_rect.collidepoint(mouse) else (35, 120, 50)
+        men_col = (80, 80, 115)  if self.menu_go_rect.collidepoint(mouse)   else (55, 55, 80)
+
+        pygame.draw.rect(screen, ta_col,  self.try_again_rect, border_radius=8)
+        pygame.draw.rect(screen, men_col, self.menu_go_rect,   border_radius=8)
+
+        screen.blit(
+            self.game_font.render("Try Again", True, 'white'),
+            self.game_font.render("Try Again", True, 'white').get_rect(center=self.try_again_rect.center))
+        screen.blit(
+            self.game_font.render("Menu", True, 'white'),
+            self.game_font.render("Menu", True, 'white').get_rect(center=self.menu_go_rect.center))
 
     def _draw_settings_screen(self):
         """Draw the settings screen with volume slider, resolution and difficulty selectors."""
+        screen = self._canvas   # draw to logical canvas
         s   = Settings.get()
         lay = self._settings_layout()
         cx  = self.screen_width // 2
 
         # ── Title ──────────────────────────────────────────────────────
         title = self.game_font.render("SETTINGS", True, 'white')
-        self.screen.blit(title, title.get_rect(center=(cx, 110)))
+        screen.blit(title, title.get_rect(center=(cx, 110)))
 
         # ── Volume ────────────────────────────────────────────────────
-        self.screen.blit(
+        screen.blit(
             self.game_font.render("VOLUME", True, (160, 160, 160)),
             (lay['slider_x'], lay['slider_y'] - 30)
         )
         sx, sy, sw, sh = lay['slider_x'], lay['slider_y'], lay['slider_w'], lay['slider_h']
-        pygame.draw.rect(self.screen, (55, 55, 65), (sx, sy, sw, sh), border_radius=6)
+        pygame.draw.rect(screen, (55, 55, 65), (sx, sy, sw, sh), border_radius=6)
         fill_w = int(sw * s.volume)
         if fill_w > 0:
-            pygame.draw.rect(self.screen, (0, 200, 255), (sx, sy, fill_w, sh), border_radius=6)
+            pygame.draw.rect(screen, (0, 200, 255), (sx, sy, fill_w, sh), border_radius=6)
         # Knob
         knob_x = sx + fill_w
-        pygame.draw.circle(self.screen, (220, 220, 220), (knob_x, sy + sh // 2), 9)
+        pygame.draw.circle(screen, (220, 220, 220), (knob_x, sy + sh // 2), 9)
         pct = self.game_font.render(f"{int(s.volume * 100)}%", True, 'white')
-        self.screen.blit(pct, (sx + sw + 14, sy - 4))
+        screen.blit(pct, (sx + sw + 14, sy - 4))
 
         # ── Resolution ────────────────────────────────────────────────
-        self.screen.blit(
+        screen.blit(
             self.game_font.render("RESOLUTION", True, (160, 160, 160)),
             (lay['res_rects'][0].x, lay['res_rects'][0].y - 28)
         )
         res_labels = ["1024×768", "1280×720", "1920×1080", "2560×1440"]
         for i, (rect, lbl) in enumerate(zip(lay['res_rects'], res_labels)):
             color = (0, 150, 210) if i == s.resolution_index else (50, 50, 68)
-            pygame.draw.rect(self.screen, color, rect, border_radius=8)
+            pygame.draw.rect(screen, color, rect, border_radius=8)
             if i == s.resolution_index:
-                pygame.draw.rect(self.screen, (0, 210, 255), rect, 2, border_radius=8)
+                pygame.draw.rect(screen, (0, 210, 255), rect, 2, border_radius=8)
             t = self.game_font.render(lbl, True, 'white')
-            self.screen.blit(t, t.get_rect(center=rect.center))
+            screen.blit(t, t.get_rect(center=rect.center))
 
         # ── Difficulty ────────────────────────────────────────────────
-        self.screen.blit(
+        screen.blit(
             self.game_font.render("DIFFICULTY", True, (160, 160, 160)),
             (lay['diff_rects'][0].x, lay['diff_rects'][0].y - 28)
         )
@@ -1016,28 +1346,28 @@ class Game:
         for i, (dlbl, dkey, dcolor) in enumerate(diff_items):
             rect  = lay['diff_rects'][i]
             color = dcolor if dkey == s.difficulty else (50, 50, 68)
-            pygame.draw.rect(self.screen, color, rect, border_radius=8)
+            pygame.draw.rect(screen, color, rect, border_radius=8)
             if dkey == s.difficulty:
-                pygame.draw.rect(self.screen, (255, 255, 255), rect, 2, border_radius=8)
+                pygame.draw.rect(screen, (255, 255, 255), rect, 2, border_radius=8)
             t = self.game_font.render(dlbl, True, 'white')
-            self.screen.blit(t, t.get_rect(center=rect.center))
+            screen.blit(t, t.get_rect(center=rect.center))
 
         # ── Fullscreen toggle ─────────────────────────────────────────
         fs    = s.fullscreen
         fs_rect  = lay['fullscreen_rect']
         fs_color = (0, 145, 195) if fs else (50, 50, 68)
         fs_border = (0, 210, 255) if fs else (70, 70, 95)
-        pygame.draw.rect(self.screen, fs_color,  fs_rect, border_radius=8)
-        pygame.draw.rect(self.screen, fs_border, fs_rect, 2, border_radius=8)
+        pygame.draw.rect(screen, fs_color,  fs_rect, border_radius=8)
+        pygame.draw.rect(screen, fs_border, fs_rect, 2, border_radius=8)
         fs_label = "FULLSCREEN:  ON" if fs else "FULLSCREEN:  OFF"
         fs_t = self.game_font.render(fs_label, True, 'white')
-        self.screen.blit(fs_t, fs_t.get_rect(center=fs_rect.center))
+        screen.blit(fs_t, fs_t.get_rect(center=fs_rect.center))
 
         # ── Back ──────────────────────────────────────────────────────
-        pygame.draw.rect(self.screen, (65, 65, 85), lay['back_rect'], border_radius=8)
+        pygame.draw.rect(screen, (65, 65, 85), lay['back_rect'], border_radius=8)
         back_t = self.game_font.render("BACK", True, 'white')
-        self.screen.blit(back_t, back_t.get_rect(center=lay['back_rect'].center))
+        screen.blit(back_t, back_t.get_rect(center=lay['back_rect'].center))
 
         hint = self.game_font.render("ESC to go back  •  F11 to toggle fullscreen",
                                      True, (90, 90, 100))
-        self.screen.blit(hint, hint.get_rect(center=(cx, lay['back_rect'].bottom + 22)))
+        screen.blit(hint, hint.get_rect(center=(cx, lay['back_rect'].bottom + 22)))
