@@ -21,6 +21,7 @@ class Settings:
         self.volume: float = 0.3
         self.resolution_index: int = 0   # index into RESOLUTIONS
         self.difficulty: str = 'normal'
+        self.fullscreen: bool = False
         self.load()
 
     @classmethod
@@ -41,6 +42,7 @@ class Settings:
             self.resolution_index = ri if 0 <= ri < len(RESOLUTIONS) else 0
             d = data.get('difficulty', 'normal')
             self.difficulty = d if d in DIFFICULTY_CONFIG else 'normal'
+            self.fullscreen = bool(data.get('fullscreen', False))
         except (json.JSONDecodeError, IOError, ValueError):
             pass
 
@@ -52,6 +54,7 @@ class Settings:
                 'volume': round(self.volume, 3),
                 'resolution_index': self.resolution_index,
                 'difficulty': self.difficulty,
+                'fullscreen': self.fullscreen,
             }, f, indent=2)
 
     @property

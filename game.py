@@ -33,7 +33,8 @@ class Game:
         config.SCREEN_WIDTH  = self.screen_width
         config.SCREEN_HEIGHT = self.screen_height
 
-        self.screen = pygame.display.set_mode((self.screen_width, self.screen_height))
+        _fs_flags = pygame.FULLSCREEN | pygame.SCALED if s.fullscreen else 0
+        self.screen = pygame.display.set_mode((self.screen_width, self.screen_height), _fs_flags)
         self.game_font = pygame.font.Font(None, 36)
         self.clock = pygame.time.Clock()
 
@@ -58,6 +59,7 @@ class Game:
         # All screen-size-dependent button rects computed in one place
         self._update_button_rects()
 
+
         # Settings screen state
         self._vol_dragging = False
 
@@ -79,8 +81,9 @@ class Game:
         # Game-over buttons
         self.try_again_rect = pygame.Rect(cx - 100, cy + 20, 200, 50)
         self.quit_rect      = pygame.Rect(cx - 100, cy + 90, 200, 50)
-        # Start-screen settings button
-        self._settings_btn_rect = pygame.Rect(cx - 70, cy + 50, 140, 40)
+        # Start-screen buttons
+        self._settings_btn_rect  = pygame.Rect(cx - 70, cy + 50,  140, 40)
+        self._quit_start_rect    = pygame.Rect(cx - 70, cy + 102, 140, 40)
 
     def _apply_volume(self):
         """Push current volume from Settings to all sound objects."""
@@ -89,12 +92,13 @@ class Game:
             snd.set_volume(vol)
 
     def _apply_resolution(self):
-        """Apply the resolution stored in Settings to the display and config module."""
+        """Apply the resolution (and fullscreen flag) stored in Settings to the display."""
         s = Settings.get()
         w, h = s.resolution
         self.screen_width  = w
         self.screen_height = h
-        self.screen = pygame.display.set_mode((w, h))
+        flags = pygame.FULLSCREEN | pygame.SCALED if s.fullscreen else 0
+        self.screen = pygame.display.set_mode((w, h), flags)
         config.SCREEN_WIDTH  = w
         config.SCREEN_HEIGHT = h
         # Rescale background and recreate canvas for the new window size
@@ -102,6 +106,13 @@ class Game:
         self.background = pygame.transform.scale(raw_bg, (w, h)).convert()
         self._canvas = pygame.Surface((w, h))
         self._update_button_rects()
+
+    def _toggle_fullscreen(self):
+        """Flip the fullscreen flag and immediately apply it."""
+        s = Settings.get()
+        s.fullscreen = not s.fullscreen
+        s.save()
+        self._apply_resolution()
 
     def _init_game(self):
         """Reset all game state for a new round."""
@@ -158,6 +169,10 @@ class Game:
     def _handle_event(self, event):
         """Route input events based on the current game state."""
         if event.type == pygame.KEYDOWN:
+            # F11 toggles fullscreen from any screen
+            if event.key == pygame.K_F11:
+                self._toggle_fullscreen()
+
             if self.state == GameState.START:
                 if event.key == pygame.K_SPACE:
                     self.state = GameState.PLAYING
@@ -171,11 +186,11 @@ class Game:
                     self._shoot()
                 if event.key in (pygame.K_LSHIFT, pygame.K_RSHIFT):
                     self.fighter.dash()
-                if event.key == pygame.K_p:
+                if event.key in (pygame.K_p, pygame.K_ESCAPE):
                     self.state = GameState.PAUSED
 
             elif self.state == GameState.PAUSED:
-                if event.key == pygame.K_p:
+                if event.key in (pygame.K_p, pygame.K_ESCAPE):
                     self.state = GameState.PLAYING
 
             elif self.state == GameState.SETTINGS:
@@ -193,6 +208,8 @@ class Game:
             if self.state == GameState.PLAYING:
                 if event.button == 1:
                     self._shoot()
+            elif self.state == GameState.PAUSED:
+                self._handle_pause_click(event.pos)
             elif self.state == GameState.GAME_OVER:
                 if self.try_again_rect.collidepoint(event.pos):
                     self._init_game()
@@ -203,17 +220,23 @@ class Game:
             elif self.state == GameState.START:
                 if self._settings_btn_rect.collidepoint(event.pos):
                     self.state = GameState.SETTINGS
+                elif self._quit_start_rect.collidepoint(event.pos):
+                    pygame.quit()
+                    sys.exit()
             elif self.state == GameState.SETTINGS:
                 self._handle_settings_click(event.pos)
 
         if event.type == pygame.MOUSEMOTION:
-            if self.state == GameState.SETTINGS and self._vol_dragging:
-                self._update_volume_from_mouse(event.pos[0])
+            if self._vol_dragging:
+                if self.state == GameState.SETTINGS:
+                    self._update_volume_from_mouse(event.pos[0])
+                elif self.state == GameState.PAUSED:
+                    self._update_pause_volume_from_mouse(event.pos[0])
 
         if event.type == pygame.MOUSEBUTTONUP:
             if self._vol_dragging:
                 self._vol_dragging = False
-                Settings.get().save()
+                Settings.get().save()  # persist volume regardless of which screen it was changed on
 
     # ------------------------------------------------------------------
     # Settings screen logic
@@ -247,16 +270,18 @@ class Game:
             for i in range(3)
         ]
 
-        back_rect = pygame.Rect(cx - 80, 560, 160, 50)
+        fullscreen_rect = pygame.Rect(cx - 110, 508, 220, 42)
+        back_rect       = pygame.Rect(cx - 80,  568, 160, 50)
 
         return {
             'slider_x': slider_x, 'slider_y': slider_y,
             'slider_w': slider_w, 'slider_h': slider_h,
             # Hit area is slightly larger than the visual bar for easier grabbing
-            'slider_hit': pygame.Rect(slider_x - 8, slider_y - 10, slider_w + 16, slider_h + 20),
-            'res_rects':  res_rects,
-            'diff_rects': diff_rects,
-            'back_rect':  back_rect,
+            'slider_hit':     pygame.Rect(slider_x - 8, slider_y - 10, slider_w + 16, slider_h + 20),
+            'res_rects':      res_rects,
+            'diff_rects':     diff_rects,
+            'fullscreen_rect': fullscreen_rect,
+            'back_rect':      back_rect,
         }
 
     def _handle_settings_click(self, pos: tuple[int, int]):
@@ -288,12 +313,82 @@ class Game:
                 s.save()
                 return
 
+        # Fullscreen toggle
+        if lay['fullscreen_rect'].collidepoint(pos):
+            self._toggle_fullscreen()
+            return
+
         # Back button
         if lay['back_rect'].collidepoint(pos):
             self.state = GameState.START
 
     def _update_volume_from_mouse(self, mouse_x: int):
         lay   = self._settings_layout()
+        ratio = (mouse_x - lay['slider_x']) / lay['slider_w']
+        s     = Settings.get()
+        s.volume = max(0.0, min(1.0, ratio))
+        self._apply_volume()
+
+    # ------------------------------------------------------------------
+    # Pause menu logic
+    # ------------------------------------------------------------------
+
+    def _pause_layout(self) -> dict:
+        """Compute rects for all interactive elements on the pause menu."""
+        cx = self.screen_width  // 2
+        cy = self.screen_height // 2
+
+        panel_w, panel_h = 340, 415
+        panel_x = cx - panel_w // 2
+        panel_y = cy - panel_h // 2
+
+        slider_w, slider_h = 280, 12
+        slider_x = panel_x + (panel_w - slider_w) // 2
+        slider_y = panel_y + 115
+
+        btn_w, btn_h = 210, 44
+        btn_x = cx - btn_w // 2
+
+        return {
+            'panel':      pygame.Rect(panel_x, panel_y, panel_w, panel_h),
+            'slider_x':   slider_x,  'slider_y': slider_y,
+            'slider_w':   slider_w,  'slider_h': slider_h,
+            'slider_hit': pygame.Rect(slider_x - 8, slider_y - 10, slider_w + 16, slider_h + 20),
+            'resume_rect':    pygame.Rect(btn_x, panel_y + 165, btn_w, btn_h),
+            'restart_rect':   pygame.Rect(btn_x, panel_y + 221, btn_w, btn_h),
+            'menu_rect':      pygame.Rect(btn_x, panel_y + 277, btn_w, btn_h),
+            # Quit is separated by a larger gap — it's a destructive action
+            'quit_rect':      pygame.Rect(btn_x, panel_y + 349, btn_w, btn_h),
+        }
+
+    def _handle_pause_click(self, pos: tuple[int, int]):
+        lay = self._pause_layout()
+
+        if lay['slider_hit'].collidepoint(pos):
+            self._vol_dragging = True
+            self._update_pause_volume_from_mouse(pos[0])
+            return
+
+        if lay['resume_rect'].collidepoint(pos):
+            self.state = GameState.PLAYING
+            return
+
+        if lay['restart_rect'].collidepoint(pos):
+            self._init_game()
+            self.state = GameState.PLAYING
+            return
+
+        if lay['menu_rect'].collidepoint(pos):
+            self._init_game()
+            self.state = GameState.START
+            return
+
+        if lay['quit_rect'].collidepoint(pos):
+            pygame.quit()
+            sys.exit()
+
+    def _update_pause_volume_from_mouse(self, mouse_x: int):
+        lay   = self._pause_layout()
         ratio = (mouse_x - lay['slider_x']) / lay['slider_w']
         s     = Settings.get()
         s.volume = max(0.0, min(1.0, ratio))
@@ -491,11 +586,80 @@ class Game:
         btn_text = self.game_font.render("Settings", True, 'white')
         self.screen.blit(btn_text, btn_text.get_rect(center=self._settings_btn_rect.center))
 
+        pygame.draw.rect(self.screen, (110, 35, 35), self._quit_start_rect, border_radius=8)
+        quit_text = self.game_font.render("Quit", True, 'white')
+        self.screen.blit(quit_text, quit_text.get_rect(center=self._quit_start_rect.center))
+
     def _draw_pause_overlay(self):
-        """Draw the pause message over the frozen game screen."""
-        pause_text = self.game_font.render("PAUSED — press P to continue", True, 'yellow')
-        pause_rect = pause_text.get_rect(center=(self.screen_width // 2, self.screen_height // 2))
-        self.screen.blit(pause_text, pause_rect)
+        """Draw a full pause menu panel over the frozen game screen."""
+        s   = Settings.get()
+        lay = self._pause_layout()
+        cx  = self.screen_width // 2
+
+        # ── Dark background dimmer ────────────────────────────────────
+        dimmer = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
+        dimmer.fill((0, 0, 0, 155))
+        self.screen.blit(dimmer, (0, 0))
+
+        # ── Panel background ──────────────────────────────────────────
+        panel = lay['panel']
+        panel_surf = pygame.Surface((panel.w, panel.h), pygame.SRCALPHA)
+        panel_surf.fill((18, 18, 32, 235))
+        self.screen.blit(panel_surf, (panel.x, panel.y))
+        pygame.draw.rect(self.screen, (65, 65, 100), panel, 2, border_radius=12)
+
+        # ── Title ─────────────────────────────────────────────────────
+        title = self.game_font.render("PAUSED", True, (220, 220, 255))
+        self.screen.blit(title, title.get_rect(center=(cx, panel.y + 42)))
+
+        # ── Divider ───────────────────────────────────────────────────
+        pygame.draw.line(self.screen, (55, 55, 85),
+                         (panel.x + 20, panel.y + 66),
+                         (panel.right - 20, panel.y + 66))
+
+        # ── Volume label ──────────────────────────────────────────────
+        vol_label = self.game_font.render("VOLUME", True, (150, 150, 175))
+        self.screen.blit(vol_label, (lay['slider_x'], lay['slider_y'] - 26))
+
+        # ── Volume slider ─────────────────────────────────────────────
+        sx, sy, sw, sh = lay['slider_x'], lay['slider_y'], lay['slider_w'], lay['slider_h']
+        pygame.draw.rect(self.screen, (55, 55, 70), (sx, sy, sw, sh), border_radius=6)
+        fill_w = int(sw * s.volume)
+        if fill_w > 0:
+            pygame.draw.rect(self.screen, (0, 190, 255), (sx, sy, fill_w, sh), border_radius=6)
+        knob_x = sx + fill_w
+        pygame.draw.circle(self.screen, (210, 210, 210), (knob_x, sy + sh // 2), 9)
+        pct = self.game_font.render(f"{int(s.volume * 100)}%", True, 'white')
+        self.screen.blit(pct, (sx + sw + 14, sy - 4))
+
+        # ── Buttons ───────────────────────────────────────────────────
+        mouse_pos = pygame.mouse.get_pos()
+        btns = [
+            (lay['resume_rect'],  "RESUME",     (35, 130, 55),  (55, 180, 75)),
+            (lay['restart_rect'], "RESTART",    (40,  55, 130), (60,  85, 180)),
+            (lay['menu_rect'],    "MAIN MENU",  (60,  60,  80), (90,  90, 120)),
+        ]
+        for rect, label, color, hover_color in btns:
+            c = hover_color if rect.collidepoint(mouse_pos) else color
+            pygame.draw.rect(self.screen, c, rect, border_radius=8)
+            pygame.draw.rect(self.screen, (90, 90, 130), rect, 1, border_radius=8)
+            t = self.game_font.render(label, True, 'white')
+            self.screen.blit(t, t.get_rect(center=rect.center))
+
+        # Thin divider before destructive QUIT button
+        sep_y = lay['quit_rect'].y - 12
+        pygame.draw.line(self.screen, (55, 55, 85),
+                         (panel.x + 30, sep_y), (panel.right - 30, sep_y))
+        q_rect = lay['quit_rect']
+        q_color = (185, 45, 45) if q_rect.collidepoint(mouse_pos) else (130, 35, 35)
+        pygame.draw.rect(self.screen, q_color, q_rect, border_radius=8)
+        pygame.draw.rect(self.screen, (200, 60, 60), q_rect, 1, border_radius=8)
+        qt = self.game_font.render("QUIT", True, 'white')
+        self.screen.blit(qt, qt.get_rect(center=q_rect.center))
+
+        # ── ESC hint ──────────────────────────────────────────────────
+        hint = self.game_font.render("ESC  /  P  to resume", True, (80, 80, 105))
+        self.screen.blit(hint, hint.get_rect(center=(cx, panel.bottom + 20)))
 
     def _draw_game_over_screen(self):
         """Draw the game over screen with final score and action buttons."""
@@ -575,10 +739,22 @@ class Game:
             t = self.game_font.render(dlbl, True, 'white')
             self.screen.blit(t, t.get_rect(center=rect.center))
 
+        # ── Fullscreen toggle ─────────────────────────────────────────
+        fs    = s.fullscreen
+        fs_rect  = lay['fullscreen_rect']
+        fs_color = (0, 145, 195) if fs else (50, 50, 68)
+        fs_border = (0, 210, 255) if fs else (70, 70, 95)
+        pygame.draw.rect(self.screen, fs_color,  fs_rect, border_radius=8)
+        pygame.draw.rect(self.screen, fs_border, fs_rect, 2, border_radius=8)
+        fs_label = "FULLSCREEN:  ON" if fs else "FULLSCREEN:  OFF"
+        fs_t = self.game_font.render(fs_label, True, 'white')
+        self.screen.blit(fs_t, fs_t.get_rect(center=fs_rect.center))
+
         # ── Back ──────────────────────────────────────────────────────
         pygame.draw.rect(self.screen, (65, 65, 85), lay['back_rect'], border_radius=8)
         back_t = self.game_font.render("BACK", True, 'white')
         self.screen.blit(back_t, back_t.get_rect(center=lay['back_rect'].center))
 
-        hint = self.game_font.render("ESC to go back", True, (90, 90, 100))
+        hint = self.game_font.render("ESC to go back  •  F11 to toggle fullscreen",
+                                     True, (90, 90, 100))
         self.screen.blit(hint, hint.get_rect(center=(cx, lay['back_rect'].bottom + 22)))
