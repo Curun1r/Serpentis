@@ -1,42 +1,69 @@
-# Space Shooter 🚀
+# Serpentis
 
-A simple space shooter game built with Python and Pygame.
+A fast-paced space shooter built with Python and Pygame. Destroy waves of aliens, survive boss fights, collect power-ups, and climb the leaderboard.
 
-## Gameplay
+## Features
 
-- Move your fighter left and right to dodge the alien
-- Shoot the alien before it reaches you
-- Each hit increases the alien's speed
-- Game ends when the alien reaches your fighter
+- **Endless wave system** — waves get harder every round (+1 alien, +15% speed per wave)
+- **4 alien types** — standard, armoured (multi-hit), zigzag, and shooter aliens that fire back
+- **Boss fights** — a procedurally-drawn boss ship every 5th wave with a HP bar
+- **3 playable ships** — each with unique stats for speed, firepower, and dash
+- **Dash mechanic** — short-range burst in any direction with a cooldown indicator
+- **3 power-ups** — Triple Shot, Shield (absorbs one hit), Slow Time
+- **Top-5 leaderboard** — persisted to disk, shown on the main menu and game-over screen
+- **Settings** — volume, resolution (1024×768 → 2560×1440), difficulty, fullscreen
+- **Sharp on HiDPI / Retina** — fixed 1280×720 logical canvas scaled via `pygame.SCALED`
+- **Camera shake & particle effects** on hits and explosions
+
+## Ships
+
+| Ship | Style | Speed | Firepower | Dash |
+|------|-------|:-----:|:---------:|:----:|
+| **Serpent** | Balanced | ●●●●●●○○○○ | ●●●●●○○○○○ | ●●●●●●○○○○ |
+| **Viper** | Speed & agility | ●●●●●●●●●○ | ●●●●○○○○○○ | ●●●●●●●●●○ |
+| **Hydra** | Heavy firepower | ●●●●○○○○○○ | ●●●●●●●●●○ | ●●●●○○○○○○ |
 
 ## Controls
 
 | Key | Action |
 |-----|--------|
-| ← → | Move fighter |
-| Space | Shoot |
+| `←` `→` `↑` `↓` or `WASD` | Move |
+| `Space` | Shoot |
+| `Shift` | Dash |
+| `P` / `Esc` | Pause |
+| `F11` | Toggle fullscreen |
 
 ## Requirements
 
 - Python 3.12
-- Pygame
+- Pygame 2.x
 
 ## Installation
 
-1. Clone the repository
 ```bash
-    git clone git@github.com:SaruUa/Space-shooter.git
-    cd Space-shooter
+git clone git@github.com:SaruUa/serpentis.git
+cd serpentis
+pipenv install
+pipenv run python main.py
 ```
 
-2. Install dependencies
-```bash
-    pipenv install
-```
+On macOS you can also double-click `run.command`.
 
-3. Run the game
-```bash
-    pipenv run python main.py
-```
+## Project structure
 
-Or simply double-click `run.command` on macOS.
+```
+main.py              — entry point
+game.py              — main loop, all game states and UI
+fighter.py           — player ship (movement, dash)
+alien.py             — Alien, ArmoredAlien, ZigzagAlien, ShooterAlien
+boss.py              — boss enemy (procedurally drawn)
+ball.py              — player bullet
+alien_bullet.py      — enemy bullet
+powerup.py           — TripleShot, Shield, SlowTime pick-ups
+explosion.py         — explosion animation sprite
+ship.py              — ShipConfig definitions (Serpent / Viper / Hydra)
+score_manager.py     — top-5 leaderboard (JSON)
+settings_manager.py  — volume, resolution, difficulty, fullscreen (JSON)
+assets.py            — image / sound cache
+config.py            — runtime constants (loaded from config.json)
+```
