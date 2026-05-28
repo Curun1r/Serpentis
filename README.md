@@ -67,6 +67,20 @@ python main.py
 | Linux    | double-click `run.sh` (or `bash run.sh`) |
 | Windows  | double-click `run.bat` |
 
+## Configuration
+
+To tweak speeds, scales, or the window title, copy the example config:
+
+```bash
+cp config.example.json config.json
+```
+
+`config.json` is gitignored — changes stay local and won't affect other players.
+
+## License
+
+[MIT](LICENSE) © Yehor Petrenko
+
 ## Project structure
 
 ```

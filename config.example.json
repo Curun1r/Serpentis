@@ -1,0 +1,20 @@
+{
+    "screen": {
+        "caption": "Serpentis"
+    },
+    "speeds": {
+        "fighter": 230,
+        "alien": 48,
+        "ball": 264
+    },
+    "scales": {
+        "fighter": 1.5,
+        "alien": 1.2,
+        "ball": 1.0
+    },
+    "gameplay": {
+        "alien_count": 3,
+        "starting_lives": 3,
+        "alien_stagger": 250
+    }
+}

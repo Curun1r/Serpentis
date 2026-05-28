@@ -15,8 +15,11 @@ dist/
 build/
 *.spec
 
-# Player data (scores are local to each machine)
+# Player data (scores and settings are local to each machine)
 data/
+
+# Local config override — copy config.example.json → config.json to customise
+config.json
 
 # macOS app bundle (generated locally)
 *.app

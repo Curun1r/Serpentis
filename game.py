@@ -91,9 +91,13 @@ class Game:
         self._ship_previews: list[pygame.Surface] = []
         for _ship in SHIPS:
             _s = _prev_base.copy()
-            _tint = pygame.Surface((_prev_w, _prev_h), pygame.SRCALPHA)
-            _tint.fill((*_ship.color, 90))
-            _s.blit(_tint, (0, 0))
+            # BLEND_RGB_MULT multiplies each pixel by the tint colour — shifts the hue
+            # without washing out to white.  Alpha channel is untouched so transparent
+            # areas stay transparent (no coloured background box).
+            # We lighten the raw ship colour before multiplying so the result isn't too dark.
+            r, g, b = _ship.color
+            tint_col = (min(255, r + 120), min(255, g + 120), min(255, b + 120))
+            _s.fill(tint_col, special_flags=pygame.BLEND_RGB_MULT)
             self._ship_previews.append(_s)
 
         # Load leaderboard from previous sessions
@@ -1063,12 +1067,14 @@ class Game:
 
             # "SELECTED" badge at bottom of highlighted card
             if is_sel:
-                badge_rect = pygame.Rect(rect.x + 20, rect.bottom - 44, CARD_W - 40, 30)
+                badge_rect = pygame.Rect(rect.x + 12, rect.bottom - 46, CARD_W - 24, 32)
                 badge_surf = pygame.Surface((badge_rect.w, badge_rect.h), pygame.SRCALPHA)
                 badge_surf.fill((*ship.color, 200))
                 screen.blit(badge_surf, badge_rect.topleft)
                 pygame.draw.rect(screen, (255, 255, 255), badge_rect, 1, border_radius=4)
-                badge_txt = self.small_font.render("SELECTED  —  SPACE TO START", True, (10, 10, 20))
+                # Use a smaller font so the text always fits inside the badge
+                _badge_font = pygame.font.Font(None, 20)
+                badge_txt = _badge_font.render("SELECTED  ·  SPACE / CLICK TO START", True, (10, 10, 20))
                 screen.blit(badge_txt, badge_txt.get_rect(center=badge_rect.center))
 
     def _draw_start_screen(self):
