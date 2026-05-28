@@ -19,7 +19,7 @@ class Settings:
 
     def __init__(self):
         self.volume: float = 0.3
-        self.resolution_index: int = 0   # index into RESOLUTIONS
+        self.resolution_index: int = 2   # index into RESOLUTIONS  (default: 1920×1080)
         self.difficulty: str = 'normal'
         self.fullscreen: bool = False
         self.load()

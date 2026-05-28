@@ -712,9 +712,9 @@ class Game:
         for shot in self.boss.drain_shots():
             self.alien_bullets.add(AlienBullet(*shot))
 
-        # Player bullets → boss
+        # Player bullets → boss  (use hit_rect — smaller than the sprite bounding box)
         for ball in list(self.balls):
-            if ball.rect.colliderect(self.boss.rect):
+            if ball.rect.colliderect(self.boss.hit_rect):
                 ball.kill()
                 self._ball_queue_remove(ball)
                 if self.boss.take_hit():
