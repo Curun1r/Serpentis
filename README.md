@@ -40,14 +40,32 @@ A fast-paced space shooter built with Python and Pygame. Destroy waves of aliens
 
 ## Installation
 
+**Requirements:** Python 3.10+ and Pygame 2.5+
+
 ```bash
 git clone git@github.com:SaruUa/serpentis.git
 cd serpentis
+```
+
+**With pipenv (recommended):**
+```bash
 pipenv install
 pipenv run python main.py
 ```
 
-On macOS you can also double-click `run.command`.
+**With pip:**
+```bash
+pip install -r requirements.txt
+python main.py
+```
+
+**One-click launchers:**
+
+| Platform | File |
+|----------|------|
+| macOS    | double-click `run.command` |
+| Linux    | double-click `run.sh` (or `bash run.sh`) |
+| Windows  | double-click `run.bat` |
 
 ## Project structure
 
