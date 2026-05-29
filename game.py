@@ -17,6 +17,8 @@ from settings_manager import Settings
 from explosion import Explosion
 from ship import ShipConfig, SHIPS
 from ship_sprites import build_ship
+from background import StarBackground
+from ui_fx import draw_glass_panel, render_shadowed, render_outlined, draw_glow_circle
 
 from screens.start      import StartScreen
 from screens.ship_select import ShipSelectScreen
@@ -84,8 +86,7 @@ class Game:
         self._apply_volume()
 
         # ── Assets ────────────────────────────────────────────────────────
-        raw_bg = Assets.get_image('image/background.png')
-        self.background = pygame.transform.scale(raw_bg, (_LOGICAL_W, _LOGICAL_H)).convert()
+        self.background = StarBackground(_LOGICAL_W, _LOGICAL_H)
 
         raw_heart = Assets.get_image('image/heart.png')
         self.heart_icon = pygame.transform.smoothscale(raw_heart, (22, 22))
@@ -188,14 +189,13 @@ class Game:
         self._triple_shot_timer = 0.0
         self._shield_active     = False
         self._slow_time_timer   = 0.0
-        self._boss_kill_delay   = 0.0   # seconds remaining before next wave after boss dies
         self._start_wave(1)
 
-    def _start_wave(self, wave_num: int):
+    def _start_wave(self, wave_num: int, extra_delay: float = 0.0):
         self.wave               = wave_num
         self.alien_bullets      = pygame.sprite.Group()
         self.powerups           = pygame.sprite.Group()
-        self._wave_banner_timer = 2.8
+        self._wave_banner_timer = 2.8 + extra_delay
 
         if wave_num % 5 == 0:
             self.boss   = Boss(wave_num)
@@ -235,8 +235,9 @@ class Game:
 
             # Menu screens get a fresh background each frame;
             # gameplay states manage their own canvas via _draw().
+            self.background.update(dt)
             if self.state not in (GameState.PLAYING, GameState.PAUSED):
-                self._canvas.blit(self.background, (0, 0))
+                self.background.draw(self._canvas)
                 self._shake_ox = self._shake_oy = 0
 
             if   self.state == GameState.LOADING:
@@ -404,12 +405,6 @@ class Game:
         if self._triple_shot_timer > 0: self._triple_shot_timer -= dt
         if self._slow_time_timer   > 0: self._slow_time_timer   -= dt
 
-        if self._boss_kill_delay > 0:
-            self._boss_kill_delay -= dt
-            if self._boss_kill_delay <= 0:
-                self._boss_kill_delay = 0.0
-                self._start_wave(self.wave + 1)
-            return   # freeze enemy spawning / wave check during delay
 
         slow = 0.30 if self._slow_time_timer > 0 else 1.0
 
@@ -516,7 +511,7 @@ class Game:
                     # Drop a heart at boss centre
                     self.powerups.add(HeartPowerUp(cx, cy))
                     self.boss = None
-                    self._boss_kill_delay = 3.0   # pause before next wave
+                    self._start_wave(self.wave + 1, extra_delay=2.0)
                     return
                 else:
                     self.hit_sound.play()
@@ -582,7 +577,7 @@ class Game:
 
     def _draw(self):
         cv = self._canvas
-        cv.blit(self.background, (0, 0))
+        self.background.draw(cv)
 
         if self.boss:
             cv.blit(self.boss.image, self.boss.rect)
@@ -609,16 +604,6 @@ class Game:
             _st = pygame.Surface((config.SCREEN_WIDTH, config.SCREEN_HEIGHT), pygame.SRCALPHA)
             _st.fill((25, 45, 180, 22))
             cv.blit(_st, (0, 0))
-
-        # Boss-kill delay countdown banner
-        if self._boss_kill_delay > 0:
-            secs = math.ceil(self._boss_kill_delay)
-            txt  = self.wave_font.render("BOSS  DEFEATED!", True, (255, 215, 0))
-            sub  = self.game_font.render(f"Next wave in  {secs}…", True, (200, 200, 200))
-            cv.blit(txt, txt.get_rect(centerx=config.SCREEN_WIDTH // 2,
-                                      centery=config.SCREEN_HEIGHT // 3))
-            cv.blit(sub, sub.get_rect(centerx=config.SCREEN_WIDTH // 2,
-                                      top=config.SCREEN_HEIGHT // 3 + txt.get_height() // 2 + 8))
 
         # Wave banner
         if self._wave_banner_timer > 0:
@@ -677,69 +662,120 @@ class Game:
         self._draw_boss_hp_bar(surface)
         self._draw_powerup_hud(surface)
 
-        score_text = self.game_font.render(
-            f"Score: {self.game_score}   Best: {self.best_score}"
-            f"   Wave: {self.wave}   Lives:",
-            True, 'white')
-        surface.blit(score_text, (20, 20))
+        sw = config.SCREEN_WIDTH
 
-        hearts_x = 20 + score_text.get_width() + 6
-        hearts_y = 20 + score_text.get_height() // 2 - self.heart_icon.get_height() // 2
+        # ── Left HUD panel ────────────────────────────────────────────
+        panel_w, panel_h = 310, 62
+        draw_glass_panel(surface, pygame.Rect(10, 10, panel_w, panel_h),
+                         bg_color=(8, 8, 22), bg_alpha=200,
+                         border_color=(50, 50, 80), radius=10)
+
+        # Score
+        sc = render_shadowed(self.game_font,
+                             f"Score  {self.game_score}", (255, 255, 255))
+        surface.blit(sc, (20, 16))
+
+        # Wave badge
+        wave_col = (255, 80, 80) if self.wave % 5 == 0 else (255, 215, 50)
+        wv = render_shadowed(self.small_font, f"WAVE {self.wave}", wave_col)
+        surface.blit(wv, (20, 40))
+
+        # Best score
+        bs = render_shadowed(self.small_font,
+                             f"Best {self.best_score}", (100, 100, 140))
+        surface.blit(bs, (panel_w - bs.get_width() - 10, 40))
+
+        # Hearts — right-aligned inside panel
+        hx = panel_w - 10 - self.lives * 26
+        hy = 14
         for i in range(self.lives):
-            surface.blit(self.heart_icon, (hearts_x + i * 26, hearts_y))
+            surface.blit(self.heart_icon, (hx + i * 26, hy))
 
-        bar_x, bar_y, bar_w, bar_h = 20, 52, 80, 6
+        # ── Dash bar ──────────────────────────────────────────────────
+        bar_x, bar_y, bar_w, bar_h = 20, 78, 90, 6
         ratio = self.fighter.dash_cooldown_ratio
-        if ratio > 0:
-            pygame.draw.rect(surface, (60, 60, 60),   (bar_x, bar_y, bar_w, bar_h), border_radius=3)
-            fill_w = int(bar_w * (1.0 - ratio))
-            if fill_w > 0:
-                pygame.draw.rect(surface, (0, 220, 255), (bar_x, bar_y, fill_w, bar_h), border_radius=3)
-            label = self.game_font.render("DASH", True, (120, 120, 120))
-        else:
-            pygame.draw.rect(surface, (0, 220, 255), (bar_x, bar_y, bar_w, bar_h), border_radius=3)
-            label = self.game_font.render("DASH", True, (0, 220, 255))
-        surface.blit(
-            pygame.transform.scale(label, (int(label.get_width() * 0.6), int(label.get_height() * 0.6))),
-            (bar_x + bar_w + 6, bar_y - 2))
+        ready = ratio == 0
+        pygame.draw.rect(surface, (30, 30, 45),
+                         (bar_x, bar_y, bar_w, bar_h), border_radius=3)
+        fill_w = int(bar_w * (1.0 - ratio))
+        fill_col = (0, 220, 255) if ready else (0, 120, 160)
+        if fill_w > 0:
+            pygame.draw.rect(surface, fill_col,
+                             (bar_x, bar_y, fill_w, bar_h), border_radius=3)
+        pygame.draw.rect(surface, (50, 50, 75),
+                         (bar_x, bar_y, bar_w, bar_h), 1, border_radius=3)
+        dash_label = render_shadowed(self.small_font,
+                                     "DASH  READY" if ready else "DASH",
+                                     (0, 220, 255) if ready else (80, 100, 110))
+        surface.blit(dash_label, (bar_x + bar_w + 8, bar_y - 4))
 
     def _draw_boss_hp_bar(self, surface: pygame.Surface):
         if not self.boss:
             return
         ratio = self.boss.hp_ratio
-        bar_w = min(520, config.SCREEN_WIDTH - 80)
-        bar_h = 22
-        bx    = config.SCREEN_WIDTH  // 2 - bar_w // 2
-        by    = config.SCREEN_HEIGHT - 44
+        sw    = config.SCREEN_WIDTH
+        bar_w = min(560, sw - 80)
+        bar_h = 20
+        bx    = sw // 2 - bar_w // 2
+        by    = config.SCREEN_HEIGHT - 48
 
-        pygame.draw.rect(surface, (30, 8,  45), (bx - 2, by - 2, bar_w + 4, bar_h + 4), border_radius=5)
-        pygame.draw.rect(surface, (55, 18, 75), (bx, by, bar_w, bar_h), border_radius=4)
+        # Panel behind bar
+        draw_glass_panel(surface,
+                         pygame.Rect(bx - 12, by - 28, bar_w + 24, bar_h + 36),
+                         bg_color=(20, 5, 30), bg_alpha=210,
+                         border_color=(120, 20, 160), radius=8)
+
+        # Bar track
+        pygame.draw.rect(surface, (40, 12, 55),
+                         (bx, by, bar_w, bar_h), border_radius=5)
 
         if ratio > 0:
             fill_w = max(1, int(bar_w * ratio))
-            color  = (50, 200, 55) if ratio > 0.66 else (225, 175, 0) if ratio > 0.33 else (215, 38, 38)
-            pygame.draw.rect(surface, color, (bx, by, fill_w, bar_h), border_radius=4)
+            if   ratio > 0.66: bar_col = (45, 195, 55)
+            elif ratio > 0.33: bar_col = (220, 170, 0)
+            else:              bar_col = (210, 35, 35)
+            pygame.draw.rect(surface, bar_col,
+                             (bx, by, fill_w, bar_h), border_radius=5)
+            # Shimmer highlight on bar
+            pygame.draw.rect(surface, tuple(min(255, c + 60) for c in bar_col),
+                             (bx, by, fill_w, bar_h // 3), border_radius=5)
 
-        pygame.draw.rect(surface, (175, 28, 215), (bx, by, bar_w, bar_h), 2, border_radius=4)
+        pygame.draw.rect(surface, (160, 30, 210),
+                         (bx, by, bar_w, bar_h), 2, border_radius=5)
 
-        lbl = self.game_font.render(f"BOSS  HP: {self.boss.hp} / {self.boss.max_hp}",
-                                    True, (215, 175, 255))
-        surface.blit(lbl, lbl.get_rect(centerx=config.SCREEN_WIDTH // 2, bottom=by - 5))
+        # Boss name + HP text
+        tier_names = {1: "Phantom", 2: "Ravager", 3: "Leviathan"}
+        name  = tier_names.get(getattr(self.boss, '_tier', 1), "BOSS")
+        label = render_shadowed(self.game_font,
+                                f"{name.upper()}   {self.boss.hp} / {self.boss.max_hp}",
+                                (220, 180, 255), (60, 0, 90))
+        surface.blit(label, label.get_rect(
+            centerx=sw // 2, bottom=by - 4))
 
     def _draw_powerup_hud(self, surface: pygame.Surface):
         lines = []
         if self._triple_shot_timer > 0:
-            lines.append((f"3x SHOT  {self._triple_shot_timer:.1f}s", (255, 210, 0)))
+            lines.append((f"3x  {self._triple_shot_timer:.1f}s", (255, 210, 0)))
         if self._shield_active:
-            lines.append(("SHIELD  ACTIVE", (70, 150, 255)))
+            lines.append(("SHIELD", (70, 150, 255)))
         if self._slow_time_timer > 0:
-            lines.append((f"SLOW TIME  {self._slow_time_timer:.1f}s", (165, 75, 255)))
+            lines.append((f"SLOW  {self._slow_time_timer:.1f}s", (165, 75, 255)))
+        if not lines:
+            return
 
-        x, y = config.SCREEN_WIDTH - 18, 20
+        sw   = config.SCREEN_WIDTH
+        px   = sw - 14
+        py   = 14
+        pw   = 130
+        ph   = len(lines) * 28 + 10
+        draw_glass_panel(surface, pygame.Rect(px - pw, py, pw, ph),
+                         bg_color=(10, 10, 25), bg_alpha=190,
+                         border_color=(60, 40, 90), radius=8)
+        ty = py + 8
         for text, color in lines:
-            surf = self.game_font.render(text, True, color)
-            surface.blit(surf, (x - surf.get_width(), y))
-            y += surf.get_height() + 4
+            s = render_shadowed(self.small_font, text, color)
+            surface.blit(s, (px - s.get_width() - 8, ty))
+            ty += 28
 
     # ------------------------------------------------------------------
     # Loading screen
@@ -747,49 +783,68 @@ class Game:
 
     def _draw_loading(self):
         """Splash screen shown for ~2.5 s on startup."""
-        cv  = self._canvas
-        sw  = _LOGICAL_W
-        sh  = _LOGICAL_H
-        cx  = sw // 2
-        cy  = sh // 2
-        t   = pygame.time.get_ticks() / 1000.0   # seconds since pygame.init()
+        cv = self._canvas
+        cx = _LOGICAL_W // 2
+        cy = _LOGICAL_H // 2
+        t  = pygame.time.get_ticks() / 1000.0
 
-        # Animated star-field pulse
-        cv.fill((6, 6, 18))
-        for i in range(60):
-            rx = (i * 337 + 17) % sw
-            ry = (i * 211 + 53) % sh
-            br = int(80 + 60 * math.sin(t * 1.8 + i * 0.4))
-            pygame.draw.circle(cv, (br, br, br + 30), (rx, ry), 1 if i % 3 else 2)
+        # Animated background already drawn by StarBackground.draw()
+        # (called before this method in run())
 
-        # Title — pulsing glow
-        alpha_title = int(200 + 55 * math.sin(t * 2.5))
-        title_surf  = self.wave_font.render("SERPENTIS", True, (180, 120, 255))
-        title_surf.set_alpha(alpha_title)
-        cv.blit(title_surf, title_surf.get_rect(centerx=cx, centery=cy - 60))
+        TOTAL    = 2.5
+        elapsed  = max(0.0, TOTAL - self._loading_timer)
+        progress = min(1.0, elapsed / TOTAL)
+
+        # Title with outline — rendered fresh (cheap at 60fps for a 2.5s splash)
+        glow_alpha = int(210 + 45 * math.sin(t * 2.5))
+        title = render_outlined(self.wave_font, "SERPENTIS",
+                                (210, 160, 255), (60, 10, 100), thickness=2)
+        title.set_alpha(glow_alpha)
+        cv.blit(title, title.get_rect(centerx=cx, centery=cy - 70))
 
         # Subtitle
-        sub = self.game_font.render("A Python space shooter", True, (90, 90, 120))
-        cv.blit(sub, sub.get_rect(centerx=cx, centery=cy - 10))
+        sub = render_shadowed(self.game_font,
+                              "A Python space shooter",
+                              (120, 110, 160), (0, 0, 0))
+        cv.blit(sub, sub.get_rect(centerx=cx, centery=cy - 5))
 
-        # Loading bar — fills up over the splash duration
-        TOTAL = 2.5
-        elapsed   = max(0.0, TOTAL - self._loading_timer)
-        progress  = min(1.0, elapsed / TOTAL)
-        bar_w, bar_h = 320, 10
+        # Glass panel for bar
+        bar_w, bar_h = 360, 12
         bar_x = cx - bar_w // 2
-        bar_y = cy + 50
-        pygame.draw.rect(cv, (35, 35, 55), (bar_x, bar_y, bar_w, bar_h), border_radius=5)
+        bar_y = cy + 52
+        draw_glass_panel(cv, pygame.Rect(bar_x - 12, bar_y - 12,
+                                         bar_w + 24, bar_h + 28),
+                         bg_color=(12, 8, 28), bg_alpha=210,
+                         border_color=(80, 40, 130), radius=8)
+
+        # Bar track + fill
+        pygame.draw.rect(cv, (30, 20, 50),
+                         (bar_x, bar_y, bar_w, bar_h), border_radius=6)
         fill = int(bar_w * progress)
         if fill > 0:
-            pygame.draw.rect(cv, (130, 60, 220), (bar_x, bar_y, fill, bar_h), border_radius=5)
-        pygame.draw.rect(cv, (80, 50, 140), (bar_x, bar_y, bar_w, bar_h), 1, border_radius=5)
+            # Gradient: purple → cyan
+            for fx in range(fill):
+                ratio = fx / max(bar_w - 1, 1)
+                r = int(130 + (0   - 130) * ratio)
+                g = int(40  + (190 - 40)  * ratio)
+                b = int(220 + (255 - 220) * ratio)
+                pygame.draw.line(cv, (r, g, b),
+                                 (bar_x + fx, bar_y),
+                                 (bar_x + fx, bar_y + bar_h))
+            # Shine
+            pygame.draw.rect(cv, (255, 255, 255, 40),
+                             (bar_x, bar_y, fill, bar_h // 3), border_radius=6)
+        pygame.draw.rect(cv, (100, 60, 180),
+                         (bar_x, bar_y, bar_w, bar_h), 1, border_radius=6)
 
-        # Loading text
-        pct  = self.small_font.render(f"Loading...  {int(progress * 100)}%",
-                                      True, (100, 80, 150))
-        cv.blit(pct, pct.get_rect(centerx=cx, top=bar_y + 18))
+        # Percentage text
+        pct = render_shadowed(self.small_font,
+                              f"Loading...  {int(progress * 100)}%",
+                              (150, 110, 200), (0, 0, 0))
+        cv.blit(pct, pct.get_rect(centerx=cx, top=bar_y + bar_h + 8))
 
-        # Version / author
-        ver = self.small_font.render("v1.0  •  Yehor Petrenko", True, (45, 45, 65))
-        cv.blit(ver, ver.get_rect(centerx=cx, bottom=sh - 18))
+        # Version tag
+        ver = render_shadowed(self.small_font,
+                              "v1.0  -  Yehor Petrenko",
+                              (50, 45, 70))
+        cv.blit(ver, ver.get_rect(centerx=cx, bottom=_LOGICAL_H - 14))
