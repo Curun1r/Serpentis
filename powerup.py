@@ -87,3 +87,10 @@ class SlowTimePowerUp(PowerUp):
     DURATION = 6.0
     COLOR    = (165, 75, 255)
     LABEL    = 'T'
+
+
+class HeartPowerUp(PowerUp):
+    """Restores 1 life (one-shot). Dropped by defeated bosses."""
+    DURATION = 0.0
+    COLOR    = (255, 80, 120)
+    LABEL    = '♥'

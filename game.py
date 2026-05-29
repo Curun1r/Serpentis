@@ -9,7 +9,7 @@ from alien import Alien, ArmoredAlien, ZigzagAlien, ShooterAlien
 from alien_bullet import AlienBullet
 from ball import Ball
 from boss import Boss
-from powerup import TripleShotPowerUp, ShieldPowerUp, SlowTimePowerUp
+from powerup import TripleShotPowerUp, ShieldPowerUp, SlowTimePowerUp, HeartPowerUp
 from config import GAME_CAPTION, STARTING_LIVES
 from assets import Assets
 from score_manager import ScoreManager
@@ -188,6 +188,7 @@ class Game:
         self._triple_shot_timer = 0.0
         self._shield_active     = False
         self._slow_time_timer   = 0.0
+        self._boss_kill_delay   = 0.0   # seconds remaining before next wave after boss dies
         self._start_wave(1)
 
     def _start_wave(self, wave_num: int):
@@ -398,6 +399,13 @@ class Game:
         if self._triple_shot_timer > 0: self._triple_shot_timer -= dt
         if self._slow_time_timer   > 0: self._slow_time_timer   -= dt
 
+        if self._boss_kill_delay > 0:
+            self._boss_kill_delay -= dt
+            if self._boss_kill_delay <= 0:
+                self._boss_kill_delay = 0.0
+                self._start_wave(self.wave + 1)
+            return   # freeze enemy spawning / wave check during delay
+
         slow = 0.30 if self._slow_time_timer > 0 else 1.0
 
         self.fighter.update(dt)
@@ -500,8 +508,10 @@ class Game:
                         self.best_score = self.game_score
                         ScoreManager.save(self.best_score)
                     self.hit_sound.play()
+                    # Drop a heart at boss centre
+                    self.powerups.add(HeartPowerUp(cx, cy))
                     self.boss = None
-                    self._start_wave(self.wave + 1)
+                    self._boss_kill_delay = 3.0   # pause before next wave
                     return
                 else:
                     self.hit_sound.play()
@@ -525,6 +535,8 @@ class Game:
             self._shield_active = True
         elif isinstance(pu, SlowTimePowerUp):
             self._slow_time_timer = SlowTimePowerUp.DURATION
+        elif isinstance(pu, HeartPowerUp):
+            self.lives = min(self.lives + 1, STARTING_LIVES + 2)
         self.powerup_sound.play()
 
     def _take_damage(self):
@@ -592,6 +604,16 @@ class Game:
             _st = pygame.Surface((config.SCREEN_WIDTH, config.SCREEN_HEIGHT), pygame.SRCALPHA)
             _st.fill((25, 45, 180, 22))
             cv.blit(_st, (0, 0))
+
+        # Boss-kill delay countdown banner
+        if self._boss_kill_delay > 0:
+            secs = math.ceil(self._boss_kill_delay)
+            txt  = self.wave_font.render("BOSS  DEFEATED!", True, (255, 215, 0))
+            sub  = self.game_font.render(f"Next wave in  {secs}…", True, (200, 200, 200))
+            cv.blit(txt, txt.get_rect(centerx=config.SCREEN_WIDTH // 2,
+                                      centery=config.SCREEN_HEIGHT // 3))
+            cv.blit(sub, sub.get_rect(centerx=config.SCREEN_WIDTH // 2,
+                                      top=config.SCREEN_HEIGHT // 3 + txt.get_height() // 2 + 8))
 
         # Wave banner
         if self._wave_banner_timer > 0:

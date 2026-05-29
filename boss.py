@@ -279,34 +279,6 @@ class Boss(Sprite):
             self._hit_flash = max(0.0, self._hit_flash - dt)
         self.image = self._img_flash if self._hit_flash > 0 else self._img_normal
 
-        # Side-to-side movement
-        self.x += self.speed_x * dt
-        if self.x <= 0:
-            self.x = 0.0
-            self.speed_x = abs(self.speed_x)
-        elif self.x >= config.SCREEN_WIDTH - self.width:
-            self.x = float(config.SCREEN_WIDTH - self.width)
-            self.speed_x = -abs(self.speed_x)
-        self.rect.x = int(self.x)
-        self.rect.y = int(self.y)
-
-        # Keep hit_rect centred on sprite
-        self.hit_rect.center = self.rect.center
-
-    def _shoot_timer_tick(self, dt: float):
-        interval = {1: 2.4, 2: 1.7, 3: 1.0}[self._phase]
-        self._shoot_timer -= dt
-        if self._shoot_timer <= 0:
-            self._shoot_timer = interval + random.uniform(-0.2, 0.2)
-            self._queue_shots()
-
-    # Override update to include shooting tick
-    def update(self, dt: float):
-        # Hit flash
-        if self._hit_flash > 0:
-            self._hit_flash = max(0.0, self._hit_flash - dt)
-        self.image = self._img_flash if self._hit_flash > 0 else self._img_normal
-
         # Movement
         self.x += self.speed_x * dt
         if self.x <= 0:
@@ -320,7 +292,7 @@ class Boss(Sprite):
         self.hit_rect.center = self.rect.center
 
         # Shooting
-        interval = {1: 2.4, 2: 1.7, 3: 1.0}[self._phase]
+        interval = {1: 3.2, 2: 2.2, 3: 2.0}[self._phase]
         self._shoot_timer -= dt
         if self._shoot_timer <= 0:
             self._shoot_timer = interval + random.uniform(-0.2, 0.2)
