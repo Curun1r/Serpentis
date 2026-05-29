@@ -16,6 +16,7 @@ from score_manager import ScoreManager
 from settings_manager import Settings
 from explosion import Explosion
 from ship import ShipConfig, SHIPS
+from ship_sprites import build_ship
 
 from screens.start      import StartScreen
 from screens.ship_select import ShipSelectScreen
@@ -25,6 +26,7 @@ from screens.pause      import PauseOverlay
 
 
 class GameState(Enum):
+    LOADING     = "loading"
     START       = "start"
     SHIP_SELECT = "ship_select"
     PLAYING     = "playing"
@@ -88,19 +90,16 @@ class Game:
         raw_heart = Assets.get_image('image/heart.png')
         self.heart_icon = pygame.transform.smoothscale(raw_heart, (22, 22))
 
-        # Pre-tinted fighter preview sprites for the ship-select cards
-        raw_fighter = Assets.get_image('image/fighter.png')
-        fw, fh = raw_fighter.get_size()
+        # Procedural ship preview sprites for the ship-select cards
         _prev_h = 80
-        _prev_w = int(fw * (_prev_h / fh))
-        _prev_base = pygame.transform.scale(raw_fighter, (_prev_w, _prev_h))
         self._ship_previews: list[pygame.Surface] = []
         for _ship in SHIPS:
-            _s = _prev_base.copy()
-            r, g, b = _ship.color
-            _s.fill((min(255, r + 120), min(255, g + 120), min(255, b + 120)),
-                    special_flags=pygame.BLEND_RGB_MULT)
-            self._ship_previews.append(_s)
+            raw = build_ship(_ship.id)
+            rw, rh = raw.get_size()
+            _prev_w = int(rw * (_prev_h / rh))
+            self._ship_previews.append(
+                pygame.transform.smoothscale(raw, (_prev_w, _prev_h))
+            )
 
         # ── Persistent state ──────────────────────────────────────────────
         self.best_score, self.score_entries = ScoreManager.load()
@@ -120,7 +119,8 @@ class Game:
         self._shake_timer = 0
         self._particles: list[dict] = []
 
-        self.state = GameState.START
+        self.state = GameState.LOADING
+        self._loading_timer = 2.5   # seconds to show splash
         self._init_game()
 
     # ------------------------------------------------------------------
@@ -225,7 +225,7 @@ class Game:
 
     def run(self):
         while True:
-            dt = self.clock.tick(60) / 1000.0
+            dt = self.clock.tick(Settings.get().fps) / 1000.0
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -239,7 +239,12 @@ class Game:
                 self._canvas.blit(self.background, (0, 0))
                 self._shake_ox = self._shake_oy = 0
 
-            if   self.state == GameState.START:
+            if   self.state == GameState.LOADING:
+                self._loading_timer -= dt
+                self._draw_loading()
+                if self._loading_timer <= 0:
+                    self.state = GameState.START
+            elif self.state == GameState.START:
                 self._start_screen.draw(self._canvas, self)
             elif self.state == GameState.SHIP_SELECT:
                 self._ship_screen.draw(self._canvas, self)
@@ -735,3 +740,56 @@ class Game:
             surf = self.game_font.render(text, True, color)
             surface.blit(surf, (x - surf.get_width(), y))
             y += surf.get_height() + 4
+
+    # ------------------------------------------------------------------
+    # Loading screen
+    # ------------------------------------------------------------------
+
+    def _draw_loading(self):
+        """Splash screen shown for ~2.5 s on startup."""
+        cv  = self._canvas
+        sw  = _LOGICAL_W
+        sh  = _LOGICAL_H
+        cx  = sw // 2
+        cy  = sh // 2
+        t   = pygame.time.get_ticks() / 1000.0   # seconds since pygame.init()
+
+        # Animated star-field pulse
+        cv.fill((6, 6, 18))
+        for i in range(60):
+            rx = (i * 337 + 17) % sw
+            ry = (i * 211 + 53) % sh
+            br = int(80 + 60 * math.sin(t * 1.8 + i * 0.4))
+            pygame.draw.circle(cv, (br, br, br + 30), (rx, ry), 1 if i % 3 else 2)
+
+        # Title — pulsing glow
+        alpha_title = int(200 + 55 * math.sin(t * 2.5))
+        title_surf  = self.wave_font.render("SERPENTIS", True, (180, 120, 255))
+        title_surf.set_alpha(alpha_title)
+        cv.blit(title_surf, title_surf.get_rect(centerx=cx, centery=cy - 60))
+
+        # Subtitle
+        sub = self.game_font.render("A Python space shooter", True, (90, 90, 120))
+        cv.blit(sub, sub.get_rect(centerx=cx, centery=cy - 10))
+
+        # Loading bar — fills up over the splash duration
+        TOTAL = 2.5
+        elapsed   = max(0.0, TOTAL - self._loading_timer)
+        progress  = min(1.0, elapsed / TOTAL)
+        bar_w, bar_h = 320, 10
+        bar_x = cx - bar_w // 2
+        bar_y = cy + 50
+        pygame.draw.rect(cv, (35, 35, 55), (bar_x, bar_y, bar_w, bar_h), border_radius=5)
+        fill = int(bar_w * progress)
+        if fill > 0:
+            pygame.draw.rect(cv, (130, 60, 220), (bar_x, bar_y, fill, bar_h), border_radius=5)
+        pygame.draw.rect(cv, (80, 50, 140), (bar_x, bar_y, bar_w, bar_h), 1, border_radius=5)
+
+        # Loading text
+        pct  = self.small_font.render(f"Loading...  {int(progress * 100)}%",
+                                      True, (100, 80, 150))
+        cv.blit(pct, pct.get_rect(centerx=cx, top=bar_y + 18))
+
+        # Version / author
+        ver = self.small_font.render("v1.0  •  Yehor Petrenko", True, (45, 45, 65))
+        cv.blit(ver, ver.get_rect(centerx=cx, bottom=sh - 18))

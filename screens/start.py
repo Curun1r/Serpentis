@@ -91,7 +91,7 @@ class StartScreen:
             t = self.game_font.render(label, True, 'white')
             canvas.blit(t, t.get_rect(center=rect.center))
 
-        _btn(self.play_rect,     "▶  PLAY",  (35, 120, 50),  (50, 170, 70))
+        _btn(self.play_rect,     ">  PLAY",  (35, 120, 50),  (50, 170, 70))
         _btn(self.settings_rect, "Settings", (55, 55, 80),   (80, 80, 115))
         _btn(self.quit_rect,     "Quit",     (100, 30, 30),  (150, 45, 45))
 

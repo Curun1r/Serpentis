@@ -3,7 +3,8 @@ import os
 
 SETTINGS_FILE = 'data/settings.json'
 
-RESOLUTIONS = [(1024, 768), (1280, 720), (1920, 1080), (2560, 1440)]
+RESOLUTIONS  = [(1024, 768), (1280, 720), (1920, 1080), (2560, 1440)]
+FRAMERATES   = [30, 60, 120, 144]
 
 DIFFICULTY_CONFIG = {
     'easy':   {'alien_speed_mult': 0.65, 'alien_count': 2},
@@ -20,6 +21,7 @@ class Settings:
     def __init__(self):
         self.volume: float = 0.3
         self.resolution_index: int = 2   # index into RESOLUTIONS  (default: 1920×1080)
+        self.fps_index: int = 1          # index into FRAMERATES   (default: 60 fps)
         self.difficulty: str = 'normal'
         self.fullscreen: bool = False
         self.load()
@@ -43,6 +45,8 @@ class Settings:
             d = data.get('difficulty', 'normal')
             self.difficulty = d if d in DIFFICULTY_CONFIG else 'normal'
             self.fullscreen = bool(data.get('fullscreen', False))
+            fi = int(data.get('fps_index', 1))
+            self.fps_index = fi if 0 <= fi < len(FRAMERATES) else 1
         except (json.JSONDecodeError, IOError, ValueError):
             pass
 
@@ -53,6 +57,7 @@ class Settings:
             json.dump({
                 'volume': round(self.volume, 3),
                 'resolution_index': self.resolution_index,
+                'fps_index': self.fps_index,
                 'difficulty': self.difficulty,
                 'fullscreen': self.fullscreen,
             }, f, indent=2)
@@ -60,6 +65,10 @@ class Settings:
     @property
     def resolution(self) -> tuple[int, int]:
         return RESOLUTIONS[self.resolution_index]
+
+    @property
+    def fps(self) -> int:
+        return FRAMERATES[self.fps_index]
 
     @property
     def alien_speed_mult(self) -> float:

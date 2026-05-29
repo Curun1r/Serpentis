@@ -3,6 +3,7 @@ import config
 from pygame.sprite import Sprite
 from config import FIGHTER_SPEED, FIGHTER_SCALE
 from assets import Assets
+from ship_sprites import build_ship
 
 DASH_MULTIPLIER = 4.0   # dash is 4× normal speed
 DASH_DURATION   = 0.15  # seconds the dash lasts (baseline)
@@ -18,19 +19,16 @@ class Fighter(Sprite):
         """
         super().__init__()
 
-        # Fetch from cache — avoids reloading if Fighter is recreated each round
-        raw_image = Assets.get_image('image/fighter.png')
-        w, h = raw_image.get_size()
-        # scale() returns a new surface so we can safely tint without touching the cache
-        self.image = pygame.transform.scale(raw_image, (int(w * FIGHTER_SCALE), int(h * FIGHTER_SCALE)))
-
-        # Tint the sprite to match the selected ship's accent colour.
-        # BLEND_RGB_MULT multiplies RGB per-pixel — shifts hue without washing out to white.
-        # Alpha channel is untouched so transparent areas stay transparent.
         if ship:
-            r, g, b = ship.color
-            tint_col = (min(255, r + 120), min(255, g + 120), min(255, b + 120))
-            self.image.fill(tint_col, special_flags=pygame.BLEND_RGB_MULT)
+            # Use the unique procedural sprite for this ship type
+            base = build_ship(ship.id)
+        else:
+            # Fallback to the legacy fighter.png (no ship selected)
+            raw_image = Assets.get_image('image/fighter.png')
+            w, h = raw_image.get_size()
+            base = pygame.transform.scale(raw_image, (int(w * FIGHTER_SCALE), int(h * FIGHTER_SCALE)))
+
+        self.image = base
         self.width, self.height = self.image.get_size()
 
         # Use float coordinates for smooth sub-pixel movement, sync to rect for rendering
