@@ -33,7 +33,7 @@ BALL_SPEED: float    = _cfg.get('speeds', {}).get('ball',    264)
 
 # --- Sprite scale multipliers ---
 FIGHTER_SCALE: float = _cfg.get('scales', {}).get('fighter', 1.5)
-ALIEN_SCALE: float   = _cfg.get('scales', {}).get('alien',   1.2)
+ALIEN_SCALE: float   = _cfg.get("scales", {}).get("alien",   0.75)
 BALL_SCALE: float    = _cfg.get('scales', {}).get('ball',    1.0)
 
 # --- Gameplay ---

@@ -11,8 +11,8 @@
     },
     "scales": {
         "fighter": 1.5,
-        "alien": 1.2,
-        "ball": 1.0
+        "alien": 0.65,
+        "ball": 0.45
     },
     "gameplay": {
         "alien_count": 3,
