@@ -5,6 +5,7 @@ import random
 from pygame.sprite import Sprite
 from config import ALIEN_SPEED, ALIEN_SCALE, ALIEN_STAGGER
 from assets import Assets
+from settings_manager import Settings
 
 
 # ---------------------------------------------------------------------------
@@ -292,7 +293,7 @@ class ZigzagAlien(Alien):
 class ShooterAlien(Alien):
     """Fires a bullet downward at random intervals."""
 
-    SCORE = 3
+    SCORE = 2
 
     def __init__(self, index: int = 0, speed_mult: float = 1.0):
         super().__init__(index, speed_mult * 0.85)
@@ -303,14 +304,15 @@ class ShooterAlien(Alien):
         self.width, self.height = self.image.get_size()
         self.rect = self.image.get_rect(x=int(self.x), y=int(self.y))
 
-        self._shoot_timer: float = random.uniform(2.0, 4.5)
+        _m = Settings.get().shooter_interval_mult
+        self._shoot_timer: float = random.uniform(2.0, 4.5) * _m
         self._pending: list[tuple[int, int]] = []
 
     def update(self, dt: float):
         super().update(dt)
         self._shoot_timer -= dt
         if self._shoot_timer <= 0:
-            self._shoot_timer = random.uniform(2.5, 5.5)
+            self._shoot_timer = random.uniform(2.5, 5.5) * Settings.get().shooter_interval_mult
             self._pending.append((self.rect.centerx, self.rect.bottom))
 
     def drain_shots(self) -> list[tuple[int, int]]:

@@ -7,9 +7,13 @@ RESOLUTIONS  = [(1024, 768), (1280, 720), (1920, 1080), (2560, 1440)]
 FRAMERATES   = [30, 60, 120, 144]
 
 DIFFICULTY_CONFIG = {
-    'easy':   {'alien_speed_mult': 0.65, 'alien_count': 2},
-    'normal': {'alien_speed_mult': 1.0,  'alien_count': 3},
-    'hard':   {'alien_speed_mult': 1.6,  'alien_count': 5},
+    #                speed   count  starting_lives  boss_hp_mult  shooter_interval_mult
+    'easy':   {'alien_speed_mult': 0.40, 'alien_count': 2,
+               'starting_lives': 5, 'boss_hp_mult': 0.65, 'shooter_interval_mult': 1.8},
+    'normal': {'alien_speed_mult': 1.0,  'alien_count': 3,
+               'starting_lives': 3, 'boss_hp_mult': 1.0,  'shooter_interval_mult': 1.0},
+    'hard':   {'alien_speed_mult': 2.1,  'alien_count': 7,
+               'starting_lives': 2, 'boss_hp_mult': 1.5,  'shooter_interval_mult': 0.6},
 }
 
 
@@ -77,3 +81,15 @@ class Settings:
     @property
     def alien_count(self) -> int:
         return DIFFICULTY_CONFIG[self.difficulty]['alien_count']
+
+    @property
+    def starting_lives(self) -> int:
+        return DIFFICULTY_CONFIG[self.difficulty]['starting_lives']
+
+    @property
+    def boss_hp_mult(self) -> float:
+        return DIFFICULTY_CONFIG[self.difficulty]['boss_hp_mult']
+
+    @property
+    def shooter_interval_mult(self) -> float:
+        return DIFFICULTY_CONFIG[self.difficulty]['shooter_interval_mult']

@@ -173,7 +173,7 @@ class Game:
     def _init_game(self):
         """Reset all gameplay state for a new round."""
         self.game_score         = 0
-        self.lives              = STARTING_LIVES
+        self.lives              = Settings.get().starting_lives
         self.flash_timer        = 0
         self.wave               = 0
         self.fighter            = Fighter(ship=self._selected_ship)
@@ -536,7 +536,7 @@ class Game:
         elif isinstance(pu, SlowTimePowerUp):
             self._slow_time_timer = SlowTimePowerUp.DURATION
         elif isinstance(pu, HeartPowerUp):
-            self.lives = min(self.lives + 1, STARTING_LIVES + 2)
+            self.lives = min(self.lives + 1, Settings.get().starting_lives + 2)
         self.powerup_sound.play()
 
     def _take_damage(self):

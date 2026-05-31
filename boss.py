@@ -3,6 +3,7 @@ import config
 import math
 import random
 from pygame.sprite import Sprite
+from settings_manager import Settings
 
 
 # ---------------------------------------------------------------------------
@@ -210,9 +211,10 @@ class Boss(Sprite):
     def __init__(self, wave: int):
         super().__init__()
 
-        self.max_hp = 15 + wave * 3     # wave 5 → 30 HP, wave 10 → 45 HP …
+        base_hp     = 15 + wave * 3     # wave 5 → 30 HP, wave 10 → 45 HP …
+        self.max_hp = max(1, int(base_hp * Settings.get().boss_hp_mult))
         self.hp     = self.max_hp
-        self.SCORE  = 10 + wave * 2
+        self.SCORE  = 10
 
         # Which visual to use (cycles 1→2→3→1→2→3…)
         encounter = wave // 5            # 1, 2, 3, 4, 5 …

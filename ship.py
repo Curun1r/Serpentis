@@ -44,8 +44,8 @@ SHIPS: list[ShipConfig] = [
         dash_cooldown_mult=1.0,
         dash_duration_mult=1.0,
         default_shots=1,
-        max_bullets=3,
-        stat_speed=6, stat_fire=5, stat_dash=6,
+        max_bullets=4,
+        stat_speed=6, stat_fire=6, stat_dash=6,
     ),
     ShipConfig(
         id='viper',
