@@ -552,7 +552,8 @@ class Game:
         if self.lives <= 0:
             self.state = GameState.GAME_OVER
             self.score_entries = ScoreManager.add_entry(
-                self.game_score, self.wave, self._selected_ship.name)
+                self.game_score, self.wave, self._selected_ship.name,
+                Settings.get().difficulty)
             self.best_score = max(self.best_score, self.game_score)
 
     def _spawn_particles(self, cx: int, cy: int, count: int = 12, colors=None):

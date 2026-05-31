@@ -100,13 +100,18 @@ class StartScreen:
                                 (160, 160, 180))
                 ship_s   = render_shadowed(self.small_font,
                                            f"{entry.get('ship','?'):<8}", ship_col)
+                diff     = entry.get('difficulty', 'normal')
+                diff_col = {'easy': (80, 200, 80), 'normal': (80, 160, 255),
+                            'hard': (255, 80, 80)}.get(diff, (160, 160, 180))
+                diff_s   = render_shadowed(self.small_font, diff.upper(), diff_col)
                 date_s   = render_shadowed(self.small_font,
                                            entry.get('date', ''), (80, 80, 105))
                 canvas.blit(rank_s,  (table_x + 18, row_y))
                 canvas.blit(score_s, (table_x + 60, row_y))
                 canvas.blit(wave_s,  (table_x + 148, row_y))
-                canvas.blit(ship_s,  (table_x + 218, row_y))
-                canvas.blit(date_s,  (table_x + 370, row_y))
+                canvas.blit(ship_s,  (table_x + 210, row_y))
+                canvas.blit(diff_s,  (table_x + 348, row_y))
+                canvas.blit(date_s,  (table_x + 452, row_y))
                 row_y += 30
         else:
             empty = render_shadowed(self.small_font,

@@ -41,17 +41,19 @@ class ScoreManager:
             json.dump({'best_score': score, 'entries': entries}, f, indent=2)
 
     @staticmethod
-    def add_entry(score: int, wave: int, ship: str) -> list[dict]:
+    def add_entry(score: int, wave: int, ship: str,
+                  difficulty: str = 'normal') -> list[dict]:
         """Insert a new entry, keep the top-MAX_ENTRIES, return the updated list.
 
         Call this exactly once per game session, at Game-Over.
         """
         _, entries = ScoreManager.load()
         entries.append({
-            'score': score,
-            'wave':  wave,
-            'ship':  ship,
-            'date':  datetime.now().strftime('%d.%m.%Y'),
+            'score':      score,
+            'wave':       wave,
+            'ship':       ship,
+            'difficulty': difficulty,
+            'date':       datetime.now().strftime('%d.%m.%Y'),
         })
         entries.sort(key=lambda e: e['score'], reverse=True)
         entries = entries[:MAX_ENTRIES]

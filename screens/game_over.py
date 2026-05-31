@@ -82,9 +82,14 @@ class GameOverScreen:
             ship_col = next((s.color for s in SHIPS if s.name == entry.get('ship')),
                             (160, 160, 180))
             canvas.blit(self.small_font.render(f"{entry.get('ship','?'):<8}", True, ship_col),
-                        (table_x + 218, row_y))
+                        (table_x + 210, row_y))
+            diff     = entry.get('difficulty', 'normal')
+            diff_col = {'easy': (80, 200, 80), 'normal': (80, 160, 255),
+                        'hard': (255, 80, 80)}.get(diff, (160, 160, 180))
+            canvas.blit(self.small_font.render(diff.upper(), True, diff_col),
+                        (table_x + 348, row_y))
             canvas.blit(self.small_font.render(entry.get('date', ''), True, (85, 85, 105)),
-                        (table_x + 368, row_y))
+                        (table_x + 452, row_y))
             row_y += 29
 
         # Buttons

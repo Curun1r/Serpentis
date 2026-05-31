@@ -62,8 +62,8 @@ class SettingsScreen:
             'res_rects':       res_rects,
             'fps_rects':       fps_rects,
             'diff_rects':      diff_rects,
-            'fullscreen_rect': pygame.Rect(cx - 150, 523, 300, 40),
-            'back_rect':       pygame.Rect(cx - 80,  575, 160, 48),
+            'fullscreen_rect': pygame.Rect(cx - 150, 545, 300, 40),
+            'back_rect':       pygame.Rect(cx - 80,  597, 160, 48),
         }
 
     # ------------------------------------------------------------------
@@ -119,11 +119,16 @@ class SettingsScreen:
         # ── Difficulty ────────────────────────────────────────────────
         canvas.blit(self.game_font.render("DIFFICULTY", True, (160, 160, 160)),
                     (lay['diff_rects'][0].x, lay['diff_rects'][0].y - 26))
-        diff_items = [("EASY",   "easy",   (55, 170, 55)),
-                      ("NORMAL", "normal", (0, 150, 210)),
-                      ("HARD",   "hard",   (190, 50, 50))]
-        for i, (dlbl, dkey, dcolor) in enumerate(diff_items):
-            rect  = lay['diff_rects'][i]
+        diff_items = [
+            ("EASY",   "easy",   (55, 170, 55),
+             "5 lives  |  slow aliens  |  boss -35% HP  |  rare shots"),
+            ("NORMAL", "normal", (0, 150, 210),
+             "3 lives  |  standard speed  |  normal boss"),
+            ("HARD",   "hard",   (190, 50, 50),
+             "2 lives  |  2x speed  |  7 aliens  |  boss +50% HP  |  rapid fire"),
+        ]
+        for i, (dlbl, dkey, dcolor, desc) in enumerate(diff_items):
+            rect   = lay['diff_rects'][i]
             active = (dkey == s.difficulty)
             pygame.draw.rect(canvas, dcolor if active else (50, 50, 68),
                              rect, border_radius=8)
@@ -131,6 +136,11 @@ class SettingsScreen:
                 pygame.draw.rect(canvas, (255, 255, 255), rect, 2, border_radius=8)
             t = self.game_font.render(dlbl, True, 'white')
             canvas.blit(t, t.get_rect(center=rect.center))
+            # Show description below the active button
+            if active:
+                desc_s = self.game_font.render(desc, True, dcolor)
+                canvas.blit(desc_s, desc_s.get_rect(
+                    centerx=cx, top=rect.bottom + 6))
 
         # ── Fullscreen ────────────────────────────────────────────────
         fs        = s.fullscreen
