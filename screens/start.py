@@ -147,8 +147,10 @@ class StartScreen:
     # ------------------------------------------------------------------
 
     def handle_click(self, lpos: tuple, game) -> str | None:
-        if self.play_rect.collidepoint(lpos):     return 'play'
-        if self.settings_rect.collidepoint(lpos): return 'settings'
+        if self.play_rect.collidepoint(lpos):
+            game.ui_click_sound.play(); return 'play'
+        if self.settings_rect.collidepoint(lpos):
+            game.ui_click_sound.play(); return 'settings'
         if self.quit_rect.collidepoint(lpos):
             pygame.quit(); sys.exit()
         return None

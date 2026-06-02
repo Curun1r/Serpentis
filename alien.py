@@ -59,7 +59,6 @@ def _build_armored(size: int = 42) -> tuple[pygame.Surface, pygame.Surface]:
     normal  = surf
     damaged = surf.copy()
     # Crack tint: dim blue → dark orange
-    damaged.fill((60, -30, -80), special_flags=pygame.BLEND_RGB_ADD)  # won't work negative
     damaged = surf.copy()
     damaged.fill((80, 20, 0), special_flags=pygame.BLEND_RGB_ADD)
     # Draw crack lines

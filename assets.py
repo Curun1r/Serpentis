@@ -4,44 +4,65 @@ import math
 
 
 class Assets:
-    """Centralized asset loader and cache.
-
-    Images and sounds are loaded/generated once on first request
-    and reused on all subsequent calls — avoids redundant disk reads
-    when multiple sprites share the same asset.
-    """
+    """Centralized asset loader and cache."""
 
     _images: dict = {}
     _sounds: dict = {}
 
     @classmethod
     def get_image(cls, path: str) -> pygame.Surface:
-        """Return a surface for the given path, loading from disk only once."""
         if path not in cls._images:
             cls._images[path] = pygame.image.load(path).convert_alpha()
         return cls._images[path]
 
     @classmethod
-    def get_sound(cls, key: str, frequency: float, duration: float, volume: float = 0.3) -> pygame.mixer.Sound:
-        """Return a generated sine wave sound, creating it only once per key."""
+    def get_sound(cls, key: str, frequency: float, duration: float,
+                  volume: float = 0.3) -> pygame.mixer.Sound:
+        """Sine wave tone (cached by key)."""
         if key not in cls._sounds:
             cls._sounds[key] = cls._make_sine(frequency, duration, volume)
         return cls._sounds[key]
 
     @classmethod
-    def _make_sine(cls, frequency: float, duration: float, volume: float) -> pygame.mixer.Sound:
-        """Generate a sine wave sound buffer from scratch — no audio files needed."""
-        sample_rate = 44100
-        frames = int(duration * sample_rate)
-        wave_data = array.array('h')
+    def make_chirp(cls, key: str, f_start: float, f_end: float,
+                   duration: float, volume: float = 0.4) -> pygame.mixer.Sound:
+        """Frequency-sweep sound (laser / whoosh). Cached by key."""
+        if key not in cls._sounds:
+            cls._sounds[key] = cls._build_chirp(f_start, f_end, duration, volume)
+        return cls._sounds[key]
+
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def _make_sine(cls, frequency: float, duration: float,
+                   volume: float) -> pygame.mixer.Sound:
+        sr     = 44100
+        frames = int(duration * sr)
+        buf    = array.array('h')
         for i in range(frames):
-            value = int(volume * 32767 * math.sin(2 * math.pi * frequency * i / sample_rate))
-            wave_data.append(value)
-            wave_data.append(value)  # stereo — same value for both channels
-        return pygame.mixer.Sound(buffer=wave_data)
+            v = int(volume * 32767 * math.sin(2 * math.pi * frequency * i / sr))
+            buf.append(v); buf.append(v)
+        return pygame.mixer.Sound(buffer=buf)
+
+    @classmethod
+    def _build_chirp(cls, f_start: float, f_end: float,
+                     duration: float, volume: float) -> pygame.mixer.Sound:
+        """Linear frequency sweep with smooth amplitude envelope."""
+        sr     = 44100
+        frames = int(duration * sr)
+        buf    = array.array('h')
+        phase  = 0.0
+        for i in range(frames):
+            t    = i / frames                          # 0 → 1
+            freq = f_start + (f_end - f_start) * t
+            # Envelope: quick attack, smooth decay
+            amp  = min(t * 15.0, 1.0) * math.exp(-3.5 * t)
+            phase += 2.0 * math.pi * freq / sr
+            v    = int(volume * amp * 32767 * math.sin(phase))
+            buf.append(v); buf.append(v)
+        return pygame.mixer.Sound(buffer=buf)
 
     @classmethod
     def clear(cls):
-        """Release all cached assets — useful for testing or freeing memory."""
         cls._images.clear()
         cls._sounds.clear()

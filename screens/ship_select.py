@@ -126,18 +126,24 @@ class ShipSelectScreen:
         for i, rect in enumerate(self._card_rects()):
             if rect.collidepoint(lpos):
                 if i == game._ship_cursor:
+                    game.ui_click_sound.play()
                     return 'confirm'
                 game._ship_cursor = i
+                game.ui_nav_sound.play()
                 return None
         return None
 
     def handle_key(self, key: int, game) -> str | None:
         if key == pygame.K_ESCAPE:
+            game.ui_click_sound.play()
             return 'back'
         if key in (pygame.K_LEFT, pygame.K_a):
             game._ship_cursor = (game._ship_cursor - 1) % len(SHIPS)
+            game.ui_nav_sound.play()
         elif key in (pygame.K_RIGHT, pygame.K_d):
             game._ship_cursor = (game._ship_cursor + 1) % len(SHIPS)
+            game.ui_nav_sound.play()
         elif key in (pygame.K_SPACE, pygame.K_RETURN):
+            game.ui_click_sound.play()
             return 'confirm'
         return None

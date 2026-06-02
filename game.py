@@ -19,6 +19,7 @@ from ship import ShipConfig, SHIPS
 from ship_sprites import build_ship
 from background import StarBackground
 from ui_fx import draw_glass_panel, render_shadowed, render_outlined, draw_glow_circle
+from music import MusicPlayer
 
 from screens.start      import StartScreen
 from screens.ship_select import ShipSelectScreen
@@ -79,11 +80,24 @@ class Game:
         self.clock = pygame.time.Clock()
 
         # ── Sounds ────────────────────────────────────────────────────────
-        self.shoot_sound     = Assets.get_sound('shoot',     frequency=520, duration=0.08)
-        self.hit_sound       = Assets.get_sound('hit',       frequency=220, duration=0.25)
+        # Shoot: laser chirp (900 Hz → 120 Hz, 0.13 s)
+        self.shoot_sound     = Assets.make_chirp('shoot',    900, 120, 0.13, 0.45)
+        # Dash: whoosh (350 Hz → 60 Hz, 0.20 s) — on dedicated channel to avoid cutoff
+        self._dash_snd_raw   = Assets.make_chirp('dash',     350,  60, 0.20, 0.55)
+        self._dash_channel   = pygame.mixer.Channel(0)   # reserved — never stolen
+        # Hit / lose-life / powerup: keep as sine tones
+        self.hit_sound       = Assets.make_chirp('hit',       180,  40, 0.12, 0.50)
         self.lose_life_sound = Assets.get_sound('lose_life', frequency=110, duration=0.5)
         self.powerup_sound   = Assets.get_sound('powerup',   frequency=740, duration=0.22)
+        # UI sounds
+        self.ui_click_sound  = Assets.make_chirp('ui_click', 700, 500, 0.06, 0.30)
+        self.ui_nav_sound    = Assets.make_chirp('ui_nav',   900, 700, 0.04, 0.22)
         self._apply_volume()
+
+        # ── Music ─────────────────────────────────────────────────────────
+        self._music = MusicPlayer()
+        self._music.set_volume(Settings.get().volume * 0.5)
+        self._music.play_menu()
 
         # ── Assets ────────────────────────────────────────────────────────
         self.background = StarBackground(_LOGICAL_W, _LOGICAL_H)
@@ -137,8 +151,13 @@ class Game:
     def _apply_volume(self):
         vol = Settings.get().volume
         for snd in (self.shoot_sound, self.hit_sound,
-                    self.lose_life_sound, self.powerup_sound):
+                    self.lose_life_sound, self.powerup_sound,
+                    self.ui_click_sound, self.ui_nav_sound):
             snd.set_volume(vol)
+        if hasattr(self, '_dash_channel'):
+            self._dash_channel.set_volume(vol * 0.55)
+        if hasattr(self, '_music'):
+            self._music.set_volume(vol * 0.5)
 
     def _apply_resolution(self):
         """Recreate the display at the resolution stored in Settings."""
@@ -295,12 +314,18 @@ class Game:
                 if event.key in (pygame.K_UP,    pygame.K_w): self.fighter.move_up()
                 if event.key in (pygame.K_DOWN,  pygame.K_s): self.fighter.move_down()
                 if event.key == pygame.K_SPACE:                self._shoot()
-                if event.key in (pygame.K_LSHIFT, pygame.K_RSHIFT): self.fighter.dash()
-                if event.key in (pygame.K_p, pygame.K_ESCAPE): self.state = GameState.PAUSED
+                if event.key in (pygame.K_LSHIFT, pygame.K_RSHIFT):
+                    if self.fighter.dash_cooldown_ratio == 0:
+                        self._dash_channel.play(self._dash_snd_raw)
+                    self.fighter.dash()
+                if event.key in (pygame.K_p, pygame.K_ESCAPE):
+                    self.state = GameState.PAUSED
+                    self._music.pause()
 
             elif self.state == GameState.PAUSED:
                 if event.key in (pygame.K_p, pygame.K_ESCAPE):
                     self.state = GameState.PLAYING
+                    self._music.resume()
 
             elif self.state == GameState.SETTINGS:
                 if event.key == pygame.K_ESCAPE:
@@ -331,8 +356,12 @@ class Game:
 
             elif self.state == GameState.GAME_OVER:
                 action = self._gameover.handle_click(lpos, self)
-                if   action == 'retry': self._init_game(); self.state = GameState.PLAYING
-                elif action == 'menu':  self._init_game(); self.state = GameState.START
+                if action == 'retry':
+                    self._init_game(); self.state = GameState.PLAYING
+                    self._music.play_battle()
+                elif action == 'menu':
+                    self._init_game(); self.state = GameState.START
+                    self._music.play_menu()
 
             elif self.state == GameState.SETTINGS:
                 action = self._settings.handle_click(lpos, self)
@@ -342,10 +371,17 @@ class Game:
 
             elif self.state == GameState.PAUSED:
                 action = self._pause.handle_click(lpos, self)
-                if   action == 'resume':  self.state = GameState.PLAYING
-                elif action == 'restart': self._init_game(); self.state = GameState.PLAYING
-                elif action == 'menu':    self._init_game(); self.state = GameState.START
-                elif action == 'quit':    pygame.quit(); sys.exit()
+                if   action == 'resume':
+                    self.state = GameState.PLAYING
+                    self._music.resume()
+                elif action == 'restart':
+                    self._init_game(); self.state = GameState.PLAYING
+                    self._music.resume()
+                elif action == 'menu':
+                    self._init_game(); self.state = GameState.START
+                    self._music.play_menu()
+                elif action == 'quit':
+                    pygame.quit(); sys.exit()
 
         if event.type == pygame.MOUSEMOTION:
             lpos = self._lpos(event.pos)
@@ -364,6 +400,7 @@ class Game:
         self._selected_ship = SHIPS[self._ship_cursor]
         self._init_game()
         self.state = GameState.PLAYING
+        self._music.play_battle()
 
     # ------------------------------------------------------------------
     # Shooting
