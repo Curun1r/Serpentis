@@ -34,6 +34,7 @@ class GameState(Enum):
     SHIP_SELECT = "ship_select"
     PLAYING     = "playing"
     PAUSED      = "paused"
+    DYING       = "dying"     # death animation before game over
     GAME_OVER   = "game_over"
     SETTINGS    = "settings"
 
@@ -134,6 +135,12 @@ class Game:
         self._shake_timer = 0
         self._particles: list[dict] = []
 
+        # Fade transition system
+        self._fade_alpha      = 255       # start fully black, fade in on launch
+        self._fade_dir        = -1        # -1 = fade in, +1 = fade out
+        self._fade_speed      = 420.0     # alpha units per second
+        self._fade_next_state: GameState | None = None
+
         self.state = GameState.LOADING
         self._loading_timer = 2.5   # seconds to show splash
         self._init_game()
@@ -175,6 +182,13 @@ class Game:
         s.save()
         self._apply_resolution()
 
+    def _fade_to(self, next_state: GameState):
+        """Start a fade-out → switch state → fade-in transition."""
+        if self._fade_next_state is not None:
+            return   # already fading
+        self._fade_next_state = next_state
+        self._fade_dir   = 1    # fade out first
+
     # ------------------------------------------------------------------
     # Coordinate helpers (display-space → logical 1280×720)
     # ------------------------------------------------------------------
@@ -203,11 +217,13 @@ class Game:
         self.powerups           = pygame.sprite.Group()
         self.boss               = None
         self._particles         = []
+        self._engine_particles: list[dict] = []
         self._shake_timer       = 0
         self._wave_banner_timer = 0.0
         self._triple_shot_timer = 0.0
         self._shield_active     = False
         self._slow_time_timer   = 0.0
+        self._death_timer       = 0.0   # countdown for DYING state
         self._start_wave(1)
 
     def _start_wave(self, wave_num: int, extra_delay: float = 0.0):
@@ -271,6 +287,9 @@ class Game:
             elif self.state == GameState.PLAYING:
                 self._update(dt)
                 self._draw()
+            elif self.state == GameState.DYING:
+                self._update_dying(dt)
+                self._draw()
             elif self.state == GameState.PAUSED:
                 self._draw()
                 self._pause.draw(self._canvas, self)
@@ -279,7 +298,25 @@ class Game:
             elif self.state == GameState.SETTINGS:
                 self._settings.draw(self._canvas, self)
 
-            # Scale logical canvas to physical display (with shake offset)
+            # ── Fade overlay ──────────────────────────────────────────
+            self._fade_alpha += self._fade_dir * self._fade_speed * dt
+            if self._fade_dir == 1 and self._fade_alpha >= 255:
+                # Fully black — switch state, then fade in
+                self._fade_alpha = 255
+                if self._fade_next_state is not None:
+                    self.state = self._fade_next_state
+                    self._fade_next_state = None
+                self._fade_dir = -1
+            elif self._fade_dir == -1:
+                self._fade_alpha = max(0.0, self._fade_alpha)
+
+            if self._fade_alpha > 1:
+                fade_surf = pygame.Surface((_LOGICAL_W, _LOGICAL_H))
+                fade_surf.fill((0, 0, 0))
+                fade_surf.set_alpha(int(self._fade_alpha))
+                self._canvas.blit(fade_surf, (0, 0))
+
+            # ── Scale to display ──────────────────────────────────────
             if self._disp_w != _LOGICAL_W or self._disp_h != _LOGICAL_H:
                 scaled = pygame.transform.smoothscale(
                     self._canvas, (self._disp_w, self._disp_h))
@@ -301,12 +338,12 @@ class Game:
 
             if self.state == GameState.START:
                 if event.key == pygame.K_SPACE:
-                    self.state = GameState.SHIP_SELECT
+                    self._fade_to(GameState.SHIP_SELECT)
 
             elif self.state == GameState.SHIP_SELECT:
                 action = self._ship_screen.handle_key(event.key, self)
                 if action == 'confirm': self._confirm_ship()
-                elif action == 'back':  self.state = GameState.START
+                elif action == 'back':  self._fade_to(GameState.START)
 
             elif self.state == GameState.PLAYING:
                 if event.key in (pygame.K_LEFT,  pygame.K_a): self.fighter.move_left()
@@ -346,8 +383,8 @@ class Game:
 
             elif self.state == GameState.START:
                 action = self._start_screen.handle_click(lpos, self)
-                if   action == 'play':     self.state = GameState.SHIP_SELECT
-                elif action == 'settings': self.state = GameState.SETTINGS
+                if   action == 'play':     self._fade_to(GameState.SHIP_SELECT)
+                elif action == 'settings': self._fade_to(GameState.SETTINGS)
                 elif action == 'quit':     pygame.quit(); sys.exit()
 
             elif self.state == GameState.SHIP_SELECT:
@@ -357,15 +394,15 @@ class Game:
             elif self.state == GameState.GAME_OVER:
                 action = self._gameover.handle_click(lpos, self)
                 if action == 'retry':
-                    self._init_game(); self.state = GameState.PLAYING
-                    self._music.play_battle()
+                    self._init_game(); self._music.play_battle()
+                    self._fade_to(GameState.PLAYING)
                 elif action == 'menu':
-                    self._init_game(); self.state = GameState.START
-                    self._music.play_menu()
+                    self._init_game(); self._music.play_menu()
+                    self._fade_to(GameState.START)
 
             elif self.state == GameState.SETTINGS:
                 action = self._settings.handle_click(lpos, self)
-                if   action == 'back':       self.state = GameState.START
+                if   action == 'back':       self._fade_to(GameState.START)
                 elif action == 'fullscreen': self._toggle_fullscreen()
                 elif action == 'resolution': self._apply_resolution()
 
@@ -375,11 +412,11 @@ class Game:
                     self.state = GameState.PLAYING
                     self._music.resume()
                 elif action == 'restart':
-                    self._init_game(); self.state = GameState.PLAYING
-                    self._music.resume()
+                    self._init_game(); self._music.resume()
+                    self._fade_to(GameState.PLAYING)
                 elif action == 'menu':
-                    self._init_game(); self.state = GameState.START
-                    self._music.play_menu()
+                    self._init_game(); self._music.play_menu()
+                    self._fade_to(GameState.START)
                 elif action == 'quit':
                     pygame.quit(); sys.exit()
 
@@ -399,8 +436,8 @@ class Game:
     def _confirm_ship(self):
         self._selected_ship = SHIPS[self._ship_cursor]
         self._init_game()
-        self.state = GameState.PLAYING
         self._music.play_battle()
+        self._fade_to(GameState.PLAYING)
 
     # ------------------------------------------------------------------
     # Shooting
@@ -446,6 +483,8 @@ class Game:
         slow = 0.30 if self._slow_time_timer > 0 else 1.0
 
         self.fighter.update(dt)
+        self._spawn_engine_trail()
+        self._update_engine_trail(dt)
         self.powerups.update(dt)
         self.aliens.update(dt * slow)
         self.balls.update(dt)
@@ -587,7 +626,18 @@ class Game:
         self._shake_timer = 5
         self.lose_life_sound.play()
         if self.lives <= 0:
-            self.state = GameState.GAME_OVER
+            # Trigger death animation before showing game over
+            cx, cy = self.fighter.rect.centerx, self.fighter.rect.centery
+            for _ in range(10):
+                ox = random.randint(-40, 40)
+                oy = random.randint(-40, 40)
+                self.explosions.add(Explosion(cx + ox, cy + oy))
+            self._spawn_particles(cx, cy, count=60,
+                                  colors=[(255, 220, 50), (255, 120, 0),
+                                          (255, 60, 0),   (255, 255, 200)])
+            self._shake_timer = 18
+            self.state        = GameState.DYING
+            self._death_timer = 1.8
             self.score_entries = ScoreManager.add_entry(
                 self.game_score, self.wave, self._selected_ship.name,
                 Settings.get().difficulty)
@@ -620,7 +670,9 @@ class Game:
         if self.boss:
             cv.blit(self.boss.image, self.boss.rect)
 
-        cv.blit(self.fighter.image, self.fighter.rect)
+        self._draw_engine_trail(cv)          # trail behind ship
+        if self.state != GameState.DYING:
+            cv.blit(self.fighter.image, self.fighter.rect)
         self.aliens.draw(cv)
         self.balls.draw(cv)
         self.alien_bullets.draw(cv)
@@ -695,6 +747,64 @@ class Game:
             s = p['size']
             pygame.draw.rect(surface, (r, g, b),
                              (int(p['x']) - s // 2, int(p['y']) - s // 2, s, s))
+
+    # ------------------------------------------------------------------
+    # Engine trail
+    # ------------------------------------------------------------------
+
+    def _spawn_engine_trail(self):
+        """Spawn 1-2 exhaust particles at the ship's engine position."""
+        f = self.fighter
+        if not (f.is_moving_left or f.is_moving_right or
+                f.is_moving_up  or f.is_moving_down or f.is_dashing):
+            return
+        ship  = self._selected_ship
+        r, g, b = ship.color
+        cx = f.rect.centerx + random.randint(-4, 4)
+        cy = f.rect.bottom  - 4
+        for _ in range(2 if f.is_dashing else 1):
+            self._engine_particles.append({
+                'x': float(cx), 'y': float(cy),
+                'vx': random.uniform(-18, 18),
+                'vy': random.uniform(18, 55),
+                'life': random.uniform(0.18, 0.35),
+                'max_life': 0.35,
+                'r': min(255, r + 80), 'g': min(255, g + 80), 'b': min(255, b + 80),
+                'size': random.randint(2, 4 if f.is_dashing else 3),
+            })
+
+    def _update_engine_trail(self, dt: float):
+        alive = []
+        for p in self._engine_particles:
+            p['x'] += p['vx'] * dt
+            p['y'] += p['vy'] * dt
+            p['life'] -= dt
+            if p['life'] > 0:
+                alive.append(p)
+        self._engine_particles = alive
+
+    def _draw_engine_trail(self, surface: pygame.Surface):
+        for p in self._engine_particles:
+            ratio = p['life'] / p['max_life']
+            alpha = int(220 * ratio)
+            s     = max(1, int(p['size'] * ratio))
+            col   = (int(p['r'] * ratio), int(p['g'] * ratio), int(p['b'] * ratio))
+            pygame.draw.circle(surface, col, (int(p['x']), int(p['y'])), s)
+
+    # ------------------------------------------------------------------
+    # Death animation state
+    # ------------------------------------------------------------------
+
+    def _update_dying(self, dt: float):
+        """Run explosions/particles during death; then fade to GAME_OVER."""
+        self.explosions.update(dt)
+        self._update_particles(dt)
+        if self._shake_timer > 0:
+            self._shake_timer -= 1
+        self._death_timer -= dt
+        if self._death_timer <= 0:
+            self._music.stop()
+            self._fade_to(GameState.GAME_OVER)
 
     def _draw_hud(self, surface: pygame.Surface):
         self._draw_boss_hp_bar(surface)
