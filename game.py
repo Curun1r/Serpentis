@@ -8,7 +8,7 @@ from fighter import Fighter
 from alien import Alien, ArmoredAlien, ZigzagAlien, ShooterAlien
 from alien_bullet import AlienBullet
 from ball import Ball
-from boss import Boss
+from boss import Boss, MiniBoss
 from powerup import TripleShotPowerUp, ShieldPowerUp, SlowTimePowerUp, HeartPowerUp
 from config import GAME_CAPTION, STARTING_LIVES
 from assets import Assets
@@ -216,6 +216,9 @@ class Game:
         self.alien_bullets      = pygame.sprite.Group()
         self.powerups           = pygame.sprite.Group()
         self.boss               = None
+        self.mini_boss          = None
+        self._boss_warning_timer  = 0.0   # countdown before boss spawns
+        self._pending_boss_wave   = 0     # wave number waiting for warning to end
         self._particles         = []
         self._engine_particles: list[dict] = []
         self._shake_timer       = 0
@@ -231,10 +234,21 @@ class Game:
         self.alien_bullets      = pygame.sprite.Group()
         self.powerups           = pygame.sprite.Group()
         self._wave_banner_timer = 2.8 + extra_delay
+        self.mini_boss          = None
 
         if wave_num % 5 == 0:
-            self.boss   = Boss(wave_num)
+            # Full boss — show warning first, spawn after delay
+            self.boss  = None
             self.aliens = pygame.sprite.Group()
+            self._boss_warning_timer = 2.8
+            self._pending_boss_wave  = wave_num
+        elif wave_num % 5 == 3 and wave_num >= 3:
+            # Mini-boss wave
+            self.boss      = None
+            self.mini_boss = MiniBoss(wave_num)
+            self.aliens    = pygame.sprite.Group()
+            self._boss_warning_timer = 1.8
+            self._pending_boss_wave  = -wave_num   # negative = mini-boss signal
         else:
             self.boss   = None
             self.aliens = pygame.sprite.Group(*self._make_wave_aliens(wave_num))
@@ -479,6 +493,17 @@ class Game:
         if self._triple_shot_timer > 0: self._triple_shot_timer -= dt
         if self._slow_time_timer   > 0: self._slow_time_timer   -= dt
 
+        # Boss/mini-boss warning countdown
+        if self._boss_warning_timer > 0:
+            self._boss_warning_timer -= dt
+            if self._boss_warning_timer <= 0:
+                self._boss_warning_timer = 0.0
+                pw = self._pending_boss_wave
+                self._pending_boss_wave = 0
+                if pw > 0:
+                    self.boss = Boss(pw)
+                elif pw < 0:
+                    self.mini_boss = MiniBoss(-pw)
 
         slow = 0.30 if self._slow_time_timer > 0 else 1.0
 
@@ -493,6 +518,7 @@ class Game:
         self._update_particles(dt)
 
         self._update_boss(dt)
+        self._update_mini_boss(dt)
         if self.state == GameState.GAME_OVER:
             return
 
@@ -554,7 +580,7 @@ class Game:
                 if self.state == GameState.GAME_OVER:
                     return
 
-        if self.boss is None and len(self.aliens) == 0:
+        if self.boss is None and self.mini_boss is None and len(self.aliens) == 0:
             self._start_wave(self.wave + 1)
 
     def _update_boss(self, dt: float):
@@ -593,6 +619,42 @@ class Game:
                     self.hit_sound.play()
 
         if self.boss and self.boss.rect.colliderect(self.fighter.rect):
+            self._take_damage()
+
+    def _update_mini_boss(self, dt: float):
+        if not self.mini_boss:
+            return
+        self.mini_boss.update(dt)
+
+        for shot in self.mini_boss.drain_shots():
+            self.alien_bullets.add(AlienBullet(*shot))
+
+        for ball in list(self.balls):
+            if ball.rect.colliderect(self.mini_boss.hit_rect):
+                ball.kill()
+                self._ball_queue_remove(ball)
+                if self.mini_boss.take_hit():
+                    cx, cy = self.mini_boss.rect.center
+                    for _ in range(4):
+                        ox = random.randint(-35, 35)
+                        oy = random.randint(-35, 35)
+                        self.explosions.add(Explosion(cx + ox, cy + oy))
+                    self._spawn_particles(cx, cy, count=25,
+                                         colors=[(0, 220, 170), (0, 180, 140),
+                                                 (255, 215, 0), (200, 255, 230)])
+                    self.game_score += self.mini_boss.SCORE
+                    if self.game_score > self.best_score:
+                        self.best_score = self.game_score
+                        ScoreManager.save(self.best_score)
+                    self.hit_sound.play()
+                    self.powerups.add(HeartPowerUp(cx, cy))   # always drops heart
+                    self.mini_boss = None
+                    self._start_wave(self.wave + 1, extra_delay=1.5)
+                    return
+                else:
+                    self.hit_sound.play()
+
+        if self.mini_boss and self.mini_boss.rect.colliderect(self.fighter.rect):
             self._take_damage()
 
     def _maybe_drop_powerup(self, cx: int, cy: int):
@@ -669,6 +731,8 @@ class Game:
 
         if self.boss:
             cv.blit(self.boss.image, self.boss.rect)
+        if self.mini_boss:
+            cv.blit(self.mini_boss.image, self.mini_boss.rect)
 
         self._draw_engine_trail(cv)          # trail behind ship
         if self.state != GameState.DYING:
@@ -695,15 +759,42 @@ class Game:
             _st.fill((25, 45, 180, 22))
             cv.blit(_st, (0, 0))
 
+        # Boss / mini-boss WARNING animation
+        if self._boss_warning_timer > 0:
+            t       = pygame.time.get_ticks() / 1000.0
+            sw, sh  = config.SCREEN_WIDTH, config.SCREEN_HEIGHT
+            is_mini = (self.wave % 5 == 3)
+            # Pulsing red screen edges
+            pulse_a = int(80 + 70 * math.sin(t * 8.0))
+            edge    = pygame.Surface((sw, sh), pygame.SRCALPHA)
+            for thick, alpha in ((18, pulse_a), (8, pulse_a // 2)):
+                col = (255, 80, 0, alpha) if is_mini else (255, 20, 20, alpha)
+                pygame.draw.rect(edge, col, (0, 0, sw, sh), thick)
+            cv.blit(edge, (0, 0))
+            # WARNING text — flashes
+            if int(t * 4) % 2 == 0:
+                warn_col = (255, 160, 0) if is_mini else (255, 30, 30)
+                warn_txt = "!! MINI-BOSS !!" if is_mini else "!! WARNING !!"
+                ws = self.wave_font.render(warn_txt, True, warn_col)
+                cv.blit(ws, ws.get_rect(centerx=sw // 2, centery=sh // 2 - 30))
+            sub_txt  = "A raider approaches!" if is_mini else "BOSS INCOMING!"
+            sub_col  = (255, 200, 100) if is_mini else (255, 120, 120)
+            ss = self.game_font.render(sub_txt, True, sub_col)
+            cv.blit(ss, ss.get_rect(centerx=sw // 2, centery=sh // 2 + 40))
+
         # Wave banner
         if self._wave_banner_timer > 0:
             alpha    = 255 if self._wave_banner_timer >= 0.5 else int(255 * self._wave_banner_timer / 0.5)
             is_boss  = (self.wave % 5 == 0)
-            b_txt    = f"BOSS WAVE  {self.wave}!" if is_boss else f"WAVE  {self.wave}"
-            b_color  = (255, 55, 55) if is_boss else (255, 215, 50)
-            s_txt    = "Defeat the boss!" if is_boss else "New aliens incoming!"
-            banner   = self.wave_font.render(b_txt, True, b_color);  banner.set_alpha(alpha)
-            sub      = self.game_font.render(s_txt, True, (200, 200, 200)); sub.set_alpha(alpha)
+            is_mini  = (self.wave % 5 == 3 and self.wave >= 3)
+            if is_boss:
+                b_txt, b_color, s_txt = f"BOSS WAVE  {self.wave}!", (255, 55, 55), "Defeat the boss!"
+            elif is_mini:
+                b_txt, b_color, s_txt = f"WAVE  {self.wave}  —  MINI-BOSS", (255, 160, 0), "A raider is coming!"
+            else:
+                b_txt, b_color, s_txt = f"WAVE  {self.wave}", (255, 215, 50), "New aliens incoming!"
+            banner = self.wave_font.render(b_txt, True, b_color);  banner.set_alpha(alpha)
+            sub    = self.game_font.render(s_txt, True, (200, 200, 200)); sub.set_alpha(alpha)
             bx = config.SCREEN_WIDTH  // 2 - banner.get_width() // 2
             by = config.SCREEN_HEIGHT // 3 - banner.get_height() // 2
             cv.blit(banner, (bx, by))
@@ -808,6 +899,7 @@ class Game:
 
     def _draw_hud(self, surface: pygame.Surface):
         self._draw_boss_hp_bar(surface)
+        self._draw_mini_boss_hp_bar(surface)
         self._draw_powerup_hud(surface)
 
         sw = config.SCREEN_WIDTH
@@ -899,6 +991,31 @@ class Game:
                                 (220, 180, 255), (60, 0, 90))
         surface.blit(label, label.get_rect(
             centerx=sw // 2, bottom=by - 4))
+
+    def _draw_mini_boss_hp_bar(self, surface: pygame.Surface):
+        if not self.mini_boss:
+            return
+        ratio = self.mini_boss.hp_ratio
+        sw    = config.SCREEN_WIDTH
+        bar_w, bar_h = 360, 14
+        bx = sw // 2 - bar_w // 2
+        by = config.SCREEN_HEIGHT - 44
+        draw_glass_panel(surface,
+                         pygame.Rect(bx - 10, by - 24, bar_w + 20, bar_h + 30),
+                         bg_color=(15, 35, 30), bg_alpha=210,
+                         border_color=(0, 160, 120), radius=8)
+        pygame.draw.rect(surface, (20, 55, 45), (bx, by, bar_w, bar_h), border_radius=5)
+        if ratio > 0:
+            fill_w   = max(1, int(bar_w * ratio))
+            bar_col  = (0, 200, 155) if ratio > 0.5 else (200, 160, 0) if ratio > 0.25 else (210, 80, 0)
+            pygame.draw.rect(surface, bar_col, (bx, by, fill_w, bar_h), border_radius=5)
+            pygame.draw.rect(surface, tuple(min(255, c + 50) for c in bar_col),
+                             (bx, by, fill_w, bar_h // 3), border_radius=5)
+        pygame.draw.rect(surface, (0, 180, 140), (bx, by, bar_w, bar_h), 2, border_radius=5)
+        label = render_shadowed(self.game_font,
+                                f"RAIDER   {self.mini_boss.hp} / {self.mini_boss.max_hp}",
+                                (180, 255, 230), (0, 40, 30))
+        surface.blit(label, label.get_rect(centerx=sw // 2, bottom=by - 4))
 
     def _draw_powerup_hud(self, surface: pygame.Surface):
         lines = []

@@ -319,3 +319,133 @@ class Boss(Sprite):
         shots = self._pending[:]
         self._pending.clear()
         return shots
+
+
+# ---------------------------------------------------------------------------
+# MiniBoss — appears on waves 3, 8, 13 …  (wave % 5 == 3)
+# ---------------------------------------------------------------------------
+
+def _build_miniboss() -> pygame.Surface:
+    """Compact triangular raider — teal/yellow, single cannon, fast."""
+    SIZE = 72
+    surf = pygame.Surface((SIZE, SIZE), pygame.SRCALPHA)
+    cx   = SIZE // 2
+    cy   = SIZE // 2
+
+    # Main arrowhead body
+    body = [(cx, 6), (SIZE - 8, SIZE - 10), (cx, SIZE - 20), (8, SIZE - 10)]
+    pygame.draw.polygon(surf, (20, 60, 50),   body)
+    pygame.draw.polygon(surf, (0, 200, 160),  body, 2)
+
+    # Side wing blades
+    for sign in (-1, 1):
+        blade = [
+            (cx + sign * 10, SIZE - 18),
+            (cx + sign * 30, SIZE - 6),
+            (cx + sign * 22, SIZE - 2),
+            (cx + sign * 6,  SIZE - 12),
+        ]
+        pygame.draw.polygon(surf, (12, 45, 38), blade)
+        pygame.draw.polygon(surf, (0, 170, 130), blade, 1)
+
+    # Core
+    pygame.draw.circle(surf, (0,  80, 65),   (cx, cy - 4), 16)
+    pygame.draw.circle(surf, (0, 210, 165),  (cx, cy - 4), 10)
+    pygame.draw.circle(surf, (180, 255, 230),(cx, cy - 4),  4)
+
+    # Single centre cannon (bottom)
+    pygame.draw.rect(surf, (0, 50, 40), (cx - 5, SIZE - 20, 10, 20), border_radius=3)
+    pygame.draw.circle(surf, (0, 220, 170), (cx, SIZE - 1), 5)
+    pygame.draw.circle(surf, (200, 255, 240),(cx, SIZE - 1), 2)
+
+    # Sensor eye
+    pygame.draw.ellipse(surf, (0, 0, 0),       (cx - 8, cy - 16, 16, 8))
+    pygame.draw.ellipse(surf, (0, 230, 180),   (cx - 7, cy - 15, 14, 6))
+    pygame.draw.ellipse(surf, (200, 255, 240), (cx - 3, cy - 14,  6, 4))
+
+    return surf
+
+
+class MiniBoss(Sprite):
+    """Mini-boss — waves 3, 8, 13 …
+
+    Less HP and smaller than a full boss, single-phase shooting,
+    faster lateral movement. Drops a power-up on death.
+    """
+
+    def __init__(self, wave: int):
+        super().__init__()
+
+        self.max_hp = 6 + wave * 2
+        self.hp     = self.max_hp
+        self.SCORE  = 5
+
+        base  = _build_miniboss()
+        scale = 1.0 + min((wave // 5) * 0.10, 0.40)
+        if scale > 1.01:
+            w, h = base.get_size()
+            base = pygame.transform.smoothscale(
+                base, (int(w * scale), int(h * scale)))
+
+        self._img_normal = base
+        self._img_flash  = base.copy()
+        self._img_flash.fill((130, 130, 130), special_flags=pygame.BLEND_RGB_ADD)
+        self.image  = self._img_normal
+        self.width, self.height = self.image.get_size()
+
+        self._hit_flash          = 0.0
+        self._HIT_FLASH_DURATION = 0.10
+
+        self.x = float(config.SCREEN_WIDTH // 2 - self.width // 2)
+        self.y = float(22)
+        self.rect     = self.image.get_rect(x=int(self.x), y=int(self.y))
+        self.speed_x  = 110.0 + wave * 4.0   # faster than full boss
+
+        # Smaller hit rect (70%)
+        hw = int(self.width  * 0.70)
+        hh = int(self.height * 0.70)
+        self.hit_rect = pygame.Rect(0, 0, hw, hh)
+        self.hit_rect.center = self.rect.center
+
+        self._shoot_timer = 2.5
+        self._pending: list[tuple] = []
+
+    @property
+    def hp_ratio(self) -> float:
+        return self.hp / self.max_hp
+
+    def take_hit(self, damage: int = 1) -> bool:
+        self.hp = max(0, self.hp - damage)
+        self._hit_flash = self._HIT_FLASH_DURATION
+        return self.hp <= 0
+
+    def update(self, dt: float):
+        if self._hit_flash > 0:
+            self._hit_flash = max(0.0, self._hit_flash - dt)
+        self.image = self._img_flash if self._hit_flash > 0 else self._img_normal
+
+        self.x += self.speed_x * dt
+        if self.x <= 0:
+            self.x = 0.0;  self.speed_x = abs(self.speed_x)
+        elif self.x >= config.SCREEN_WIDTH - self.width:
+            self.x = float(config.SCREEN_WIDTH - self.width)
+            self.speed_x = -abs(self.speed_x)
+        self.rect.x = int(self.x)
+        self.rect.y = int(self.y)
+        self.hit_rect.center = self.rect.center
+
+        # Shoot: slower single bullet
+        interval = Settings.get().shooter_interval_mult * 2.8
+        self._shoot_timer -= dt
+        if self._shoot_timer <= 0:
+            self._shoot_timer = interval + random.uniform(-0.3, 0.3)
+            cx = self.rect.centerx
+            cy = self.rect.bottom - 2
+            # Two-spread shot
+            for ox in (-18, 0, 18):
+                self._pending.append((cx + ox, cy, ox * 1.2, 195.0))
+
+    def drain_shots(self) -> list[tuple]:
+        shots = self._pending[:]
+        self._pending.clear()
+        return shots
