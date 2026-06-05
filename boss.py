@@ -281,8 +281,9 @@ class Boss(Sprite):
             self._hit_flash = max(0.0, self._hit_flash - dt)
         self.image = self._img_flash if self._hit_flash > 0 else self._img_normal
 
-        # Movement
-        self.x += self.speed_x * dt
+        # Tier-specific movement speed scaling
+        move_scale = {1: 1.0, 2: 1.3, 3: 0.75}[self._tier]
+        self.x += self.speed_x * move_scale * dt
         if self.x <= 0:
             self.x = 0.0
             self.speed_x = abs(self.speed_x)
@@ -293,26 +294,70 @@ class Boss(Sprite):
         self.rect.y = int(self.y)
         self.hit_rect.center = self.rect.center
 
-        # Shooting
-        interval = {1: 3.2, 2: 2.2, 3: 2.0}[self._phase]
+        # Shooting interval varies by tier and phase
+        intervals = {
+            1: {1: 3.2, 2: 2.2, 3: 1.8},   # Phantom — spread shots, standard tempo
+            2: {1: 2.8, 2: 1.6, 3: 1.0},   # Ravager — fast side-burst, aggressive
+            3: {1: 4.0, 2: 3.0, 3: 2.2},   # Leviathan — slow but wide star-burst
+        }
+        interval = intervals[self._tier][self._phase]
         self._shoot_timer -= dt
         if self._shoot_timer <= 0:
-            self._shoot_timer = interval + random.uniform(-0.2, 0.2)
+            self._shoot_timer = interval + random.uniform(-0.15, 0.15)
             self._queue_shots()
 
     def _queue_shots(self):
+        """Tier-specific attack patterns:
+        Tier 1 Phantom  — classic spread, 3-phase fan
+        Tier 2 Ravager  — diagonal side-bursts + aimed centre shot
+        Tier 3 Leviathan— 360° star-burst (more bullets in later phases)
+        """
         cx = self.rect.centerx
         cy = self.rect.bottom - 4
         p  = self._phase
-        if p == 1:
-            self._pending.append((cx, cy, 0.0, 205.0))
-        elif p == 2:
-            for ox in (-26, 0, 26):
-                self._pending.append((cx + ox, cy, 0.0, 215.0))
-        else:
-            for ox in (-44, -22, 0, 22, 44):
-                vx = ox * 1.8
-                self._pending.append((cx + ox, cy, vx, 225.0))
+
+        if self._tier == 1:
+            # Phantom: downward spread fan (classic)
+            if p == 1:
+                self._pending.append((cx, cy, 0.0, 205.0))
+            elif p == 2:
+                for ox in (-28, 0, 28):
+                    self._pending.append((cx + ox, cy, 0.0, 215.0))
+            else:
+                for ox in (-48, -24, 0, 24, 48):
+                    self._pending.append((cx + ox, cy, ox * 1.6, 225.0))
+
+        elif self._tier == 2:
+            # Ravager: diagonal side-shots + centre aimed burst
+            if p == 1:
+                # Two diagonal shots outward
+                for vx in (-120.0, 120.0):
+                    self._pending.append((cx, cy, vx, 180.0))
+            elif p == 2:
+                # Diagonal + centre
+                for vx in (-140.0, 0.0, 140.0):
+                    self._pending.append((cx, cy, vx, 200.0))
+            else:
+                # Full diagonal X-pattern: 4 diagonals + centre
+                for vx, vy in [(-160, 200), (-80, 210), (0, 220), (80, 210), (160, 200)]:
+                    self._pending.append((cx, cy, vx, vy))
+
+        elif self._tier == 3:
+            # Leviathan: star-burst in all directions
+            if p == 1:
+                count = 6
+            elif p == 2:
+                count = 8
+            else:
+                count = 12
+            speed = 190.0
+            for i in range(count):
+                angle = math.radians(i * 360 / count - 90)   # start pointing down
+                vx = math.sin(angle) * speed
+                vy = math.cos(angle) * speed * -1
+                # Only fire downward hemisphere (vy > 0 or close to horizontal)
+                if vy >= -30:
+                    self._pending.append((cx, cy, vx, max(vy, 80.0)))
 
     def drain_shots(self) -> list[tuple]:
         """Return (cx, cy, vx, vy) tuples and clear the queue."""
@@ -376,7 +421,7 @@ class MiniBoss(Sprite):
     def __init__(self, wave: int):
         super().__init__()
 
-        self.max_hp = 6 + wave * 2
+        self.max_hp = 4 + wave
         self.hp     = self.max_hp
         self.SCORE  = 5
 

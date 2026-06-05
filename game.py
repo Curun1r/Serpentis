@@ -580,7 +580,10 @@ class Game:
                 if self.state == GameState.GAME_OVER:
                     return
 
-        if self.boss is None and self.mini_boss is None and len(self.aliens) == 0:
+        if (self.boss is None and self.mini_boss is None
+                and len(self.aliens) == 0
+                and self._pending_boss_wave == 0
+                and self._boss_warning_timer <= 0):
             self._start_wave(self.wave + 1)
 
     def _update_boss(self, dt: float):
@@ -1110,6 +1113,6 @@ class Game:
 
         # Version tag
         ver = render_shadowed(self.small_font,
-                              "v1.0  -  Yehor Petrenko",
+                              "v1.7.0  -  Yehor Petrenko",
                               (50, 45, 70))
         cv.blit(ver, ver.get_rect(centerx=cx, bottom=_LOGICAL_H - 14))
