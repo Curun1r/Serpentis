@@ -20,9 +20,9 @@ class ShipSelectScreen:
         self._previews = ship_previews   # pre-tinted surfaces from Game.__init__
 
         # Card geometry (fixed; depends on screen width via _card_rects())
-        self.CARD_W = 265
-        self.CARD_H = 375
-        self.GAP    = 45
+        self.CARD_W = 290
+        self.CARD_H = 410
+        self.GAP    = 30
 
     # ------------------------------------------------------------------
 

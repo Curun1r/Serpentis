@@ -458,11 +458,16 @@ class Game:
     # ------------------------------------------------------------------
 
     def _shoot(self):
+        ship = self._selected_ship
         if self._triple_shot_timer > 0:
-            angles = [-18, 0, 18]
-            limit  = 9
+            if ship.default_shots >= 2:
+                # Heavy firepower ship: 4-shot spread
+                angles = [-24, -8, 8, 24]
+                limit  = 12
+            else:
+                angles = [-18, 0, 18]
+                limit  = 9
         else:
-            ship   = self._selected_ship
             angles = [-10, 10] if ship.default_shots == 2 else [0]
             limit  = ship.max_bullets
 
@@ -569,14 +574,29 @@ class Game:
         for ab in list(self.alien_bullets):
             if ab.rect.colliderect(self.fighter.rect):
                 ab.kill()
-                self._take_damage()
+                if self._shield_active:
+                    self._shield_active = False
+                    self.flash_timer  = 6
+                    self._shake_timer = 2
+                else:
+                    self._take_damage()
                 if self.state == GameState.GAME_OVER:
                     return
 
         for alien in list(self.aliens):
-            if alien.has_reached_fighter(self.fighter) or alien.is_off_screen():
+            reached = alien.has_reached_fighter(self.fighter)
+            off     = alien.is_off_screen()
+            if reached or off:
                 alien.kill()
-                self._take_damage()
+                # Shield absorbs direct collision but NOT enemies that slip past
+                if reached and self._shield_active:
+                    self._shield_active = False
+                    self.flash_timer  = 6
+                    self._shake_timer = 2
+                    self._spawn_particles(alien.rect.centerx, alien.rect.centery,
+                                         count=10, colors=[(70, 150, 255), (180, 220, 255)])
+                else:
+                    self._take_damage()
                 if self.state == GameState.GAME_OVER:
                     return
 
@@ -622,7 +642,15 @@ class Game:
                     self.hit_sound.play()
 
         if self.boss and self.boss.rect.colliderect(self.fighter.rect):
-            self._take_damage()
+            if self._shield_active:
+                self._shield_active = False
+                self.flash_timer  = 6
+                self._shake_timer = 2
+                # Shield rams the boss — deal damage to it
+                if self.boss.take_hit(2):
+                    pass   # boss HP handled normally; death checked next frame
+            else:
+                self._take_damage()
 
     def _update_mini_boss(self, dt: float):
         if not self.mini_boss:
@@ -658,7 +686,13 @@ class Game:
                     self.hit_sound.play()
 
         if self.mini_boss and self.mini_boss.rect.colliderect(self.fighter.rect):
-            self._take_damage()
+            if self._shield_active:
+                self._shield_active = False
+                self.flash_timer  = 6
+                self._shake_timer = 2
+                self.mini_boss.take_hit(2)
+            else:
+                self._take_damage()
 
     def _maybe_drop_powerup(self, cx: int, cy: int):
         if random.random() > 0.25:
