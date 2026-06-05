@@ -18,7 +18,7 @@ from explosion import Explosion
 from ship import ShipConfig, SHIPS
 from ship_sprites import build_ship
 from background import StarBackground
-from ui_fx import draw_glass_panel, render_shadowed, render_outlined, draw_glow_circle
+from ui_fx import draw_glass_panel, render_shadowed, render_outlined, draw_glow_circle, DamageNumber
 from music import MusicPlayer
 
 from screens.start      import StartScreen
@@ -90,6 +90,8 @@ class Game:
         self.hit_sound       = Assets.make_chirp('hit',       180,  40, 0.12, 0.50)
         self.lose_life_sound = Assets.get_sound('lose_life', frequency=110, duration=0.5)
         self.powerup_sound   = Assets.get_sound('powerup',   frequency=740, duration=0.22)
+        # Shield break: electric burst (550 Hz → 60 Hz, 0.22 s)
+        self.shield_break_sound = Assets.make_chirp('shield_break', 550, 60, 0.22, 0.65)
         # UI sounds
         self.ui_click_sound  = Assets.make_chirp('ui_click', 700, 500, 0.06, 0.30)
         self.ui_nav_sound    = Assets.make_chirp('ui_nav',   900, 700, 0.04, 0.22)
@@ -159,6 +161,7 @@ class Game:
         vol = Settings.get().volume
         for snd in (self.shoot_sound, self.hit_sound,
                     self.lose_life_sound, self.powerup_sound,
+                    self.shield_break_sound,
                     self.ui_click_sound, self.ui_nav_sound):
             snd.set_volume(vol)
         if hasattr(self, '_dash_channel'):
@@ -221,6 +224,7 @@ class Game:
         self._pending_boss_wave   = 0     # wave number waiting for warning to end
         self._particles         = []
         self._engine_particles: list[dict] = []
+        self._damage_numbers:   list[DamageNumber] = []
         self._shake_timer       = 0
         self._wave_banner_timer = 0.0
         self._triple_shot_timer = 0.0
@@ -243,11 +247,12 @@ class Game:
             self._boss_warning_timer = 2.8
             self._pending_boss_wave  = wave_num
         elif wave_num % 5 == 3 and wave_num >= 3:
-            # Mini-boss wave
+            # Mini-boss wave — do NOT instantiate MiniBoss here; the warning
+            # timer callback below creates it so it only spawns once.
             self.boss      = None
-            self.mini_boss = MiniBoss(wave_num)
+            self.mini_boss = None
             self.aliens    = pygame.sprite.Group()
-            self._boss_warning_timer = 1.8
+            self._boss_warning_timer = 1.2
             self._pending_boss_wave  = -wave_num   # negative = mini-boss signal
         else:
             self.boss   = None
@@ -521,6 +526,7 @@ class Game:
         self.explosions.update(dt)
         self.alien_bullets.update(dt * slow)
         self._update_particles(dt)
+        DamageNumber.update_all(self._damage_numbers, dt)
 
         self._update_boss(dt)
         self._update_mini_boss(dt)
@@ -566,18 +572,21 @@ class Game:
                     if self.game_score > self.best_score:
                         self.best_score = self.game_score
                         ScoreManager.save(self.best_score)
+                    self._spawn_damage_number(cx, cy, f"+{alien.SCORE}",
+                                              DamageNumber.COLOR_SCORE, scale=1.05)
                 else:
                     self._spawn_particles(cx, cy, count=5,
                                          colors=[(90, 140, 255), (160, 195, 255)])
+                    self._spawn_damage_number(cx, cy, "HIT",
+                                              DamageNumber.COLOR_HIT, scale=0.85,
+                                              lifetime=0.55)
                 self.hit_sound.play()
 
         for ab in list(self.alien_bullets):
             if ab.rect.colliderect(self.fighter.rect):
                 ab.kill()
                 if self._shield_active:
-                    self._shield_active = False
-                    self.flash_timer  = 6
-                    self._shake_timer = 2
+                    self._break_shield()
                 else:
                     self._take_damage()
                 if self.state == GameState.GAME_OVER:
@@ -590,9 +599,7 @@ class Game:
                 alien.kill()
                 # Shield absorbs direct collision but NOT enemies that slip past
                 if reached and self._shield_active:
-                    self._shield_active = False
-                    self.flash_timer  = 6
-                    self._shake_timer = 2
+                    self._break_shield()
                     self._spawn_particles(alien.rect.centerx, alien.rect.centery,
                                          count=10, colors=[(70, 150, 255), (180, 220, 255)])
                 else:
@@ -632,6 +639,9 @@ class Game:
                     if self.game_score > self.best_score:
                         self.best_score = self.game_score
                         ScoreManager.save(self.best_score)
+                    self._spawn_damage_number(cx, cy, f"+{self.boss.SCORE}",
+                                              DamageNumber.COLOR_SCORE, scale=1.3,
+                                              lifetime=1.2)
                     self.hit_sound.play()
                     # Drop a heart at boss centre
                     self.powerups.add(HeartPowerUp(cx, cy))
@@ -639,13 +649,14 @@ class Game:
                     self._start_wave(self.wave + 1, extra_delay=2.0)
                     return
                 else:
+                    self._spawn_damage_number(ball.rect.centerx, ball.rect.centery,
+                                              "HIT", DamageNumber.COLOR_BOSS,
+                                              scale=0.9, lifetime=0.6)
                     self.hit_sound.play()
 
         if self.boss and self.boss.rect.colliderect(self.fighter.rect):
             if self._shield_active:
-                self._shield_active = False
-                self.flash_timer  = 6
-                self._shake_timer = 2
+                self._break_shield()
                 # Shield rams the boss — deal damage to it
                 if self.boss.take_hit(2):
                     pass   # boss HP handled normally; death checked next frame
@@ -677,19 +688,23 @@ class Game:
                     if self.game_score > self.best_score:
                         self.best_score = self.game_score
                         ScoreManager.save(self.best_score)
+                    self._spawn_damage_number(cx, cy, f"+{self.mini_boss.SCORE}",
+                                              DamageNumber.COLOR_SCORE, scale=1.15,
+                                              lifetime=1.1)
                     self.hit_sound.play()
                     self.powerups.add(HeartPowerUp(cx, cy))   # always drops heart
                     self.mini_boss = None
                     self._start_wave(self.wave + 1, extra_delay=1.5)
                     return
                 else:
+                    self._spawn_damage_number(ball.rect.centerx, ball.rect.centery,
+                                              "HIT", (0, 220, 170),
+                                              scale=0.9, lifetime=0.6)
                     self.hit_sound.play()
 
         if self.mini_boss and self.mini_boss.rect.colliderect(self.fighter.rect):
             if self._shield_active:
-                self._shield_active = False
-                self.flash_timer  = 6
-                self._shake_timer = 2
+                self._break_shield()
                 self.mini_boss.take_hit(2)
             else:
                 self._take_damage()
@@ -716,14 +731,17 @@ class Game:
 
     def _take_damage(self):
         if self._shield_active:
-            self._shield_active = False
-            self.flash_timer  = 6
-            self._shake_timer = 2
+            self._break_shield()
             return
         self.lives       -= 1
         self.flash_timer  = 20
         self._shake_timer = 5
         self.lose_life_sound.play()
+        # Floating damage label above the ship
+        fx, fy = self.fighter.rect.centerx, self.fighter.rect.top - 10
+        self._spawn_damage_number(fx, fy, "-1 LIFE",
+                                  DamageNumber.COLOR_PLAYER, scale=1.1,
+                                  lifetime=1.0)
         if self.lives <= 0:
             # Trigger death animation before showing game over
             cx, cy = self.fighter.rect.centerx, self.fighter.rect.centery
@@ -758,6 +776,24 @@ class Game:
                 'size': random.randint(2, 5),
             })
 
+    def _break_shield(self):
+        """Deactivate shield, trigger flash/shake, and play the break sound."""
+        self._shield_active = False
+        self.flash_timer    = 6
+        self._shake_timer   = 2
+        self.shield_break_sound.play()
+
+    def _spawn_damage_number(self, x: float, y: float, text: str,
+                             color: tuple, scale: float = 1.0,
+                             lifetime: float = 0.9):
+        """Spawn a floating damage/score label at world position (x, y)."""
+        # Add a small random horizontal scatter so overlapping numbers separate
+        x += random.randint(-14, 14)
+        self._damage_numbers.append(
+            DamageNumber(x, y, text, color, self.game_font,
+                         lifetime=lifetime, scale=scale)
+        )
+
     # ------------------------------------------------------------------
     # Draw (gameplay only — menu screens draw themselves)
     # ------------------------------------------------------------------
@@ -780,6 +816,7 @@ class Game:
         self.powerups.draw(cv)
         self.explosions.draw(cv)
         self._draw_particles(cv)
+        DamageNumber.draw_all(self._damage_numbers, cv)
 
         # Shield ring
         if self._shield_active:
@@ -801,23 +838,24 @@ class Game:
             t       = pygame.time.get_ticks() / 1000.0
             sw, sh  = config.SCREEN_WIDTH, config.SCREEN_HEIGHT
             is_mini = (self.wave % 5 == 3)
-            # Pulsing red screen edges
-            pulse_a = int(80 + 70 * math.sin(t * 8.0))
+            # Pulsing screen edge — thinner/subtler for mini-boss
+            pulse_a = int(60 + 50 * math.sin(t * 8.0))
             edge    = pygame.Surface((sw, sh), pygame.SRCALPHA)
-            for thick, alpha in ((18, pulse_a), (8, pulse_a // 2)):
+            thicks  = (10, 4) if is_mini else (18, 8)
+            for thick, alpha in zip(thicks, (pulse_a, pulse_a // 2)):
                 col = (255, 80, 0, alpha) if is_mini else (255, 20, 20, alpha)
                 pygame.draw.rect(edge, col, (0, 0, sw, sh), thick)
             cv.blit(edge, (0, 0))
-            # WARNING text — flashes
+            # WARNING text — mini-boss uses smaller font, boss keeps big font
             if int(t * 4) % 2 == 0:
-                warn_col = (255, 160, 0) if is_mini else (255, 30, 30)
-                warn_txt = "!! MINI-BOSS !!" if is_mini else "!! WARNING !!"
-                ws = self.wave_font.render(warn_txt, True, warn_col)
-                cv.blit(ws, ws.get_rect(centerx=sw // 2, centery=sh // 2 - 30))
-            sub_txt  = "A raider approaches!" if is_mini else "BOSS INCOMING!"
-            sub_col  = (255, 200, 100) if is_mini else (255, 120, 120)
-            ss = self.game_font.render(sub_txt, True, sub_col)
-            cv.blit(ss, ss.get_rect(centerx=sw // 2, centery=sh // 2 + 40))
+                warn_col  = (255, 160, 0) if is_mini else (255, 30, 30)
+                warn_txt  = "MINI-BOSS" if is_mini else "!! WARNING !!"
+                warn_font = self.med_font if is_mini else self.wave_font
+                ws = warn_font.render(warn_txt, True, warn_col)
+                cv.blit(ws, ws.get_rect(centerx=sw // 2, centery=sh // 2 - 20))
+            if not is_mini:
+                ss = self.game_font.render("BOSS INCOMING!", True, (255, 120, 120))
+                cv.blit(ss, ss.get_rect(centerx=sw // 2, centery=sh // 2 + 40))
 
         # Wave banner
         if self._wave_banner_timer > 0:
@@ -927,6 +965,7 @@ class Game:
         """Run explosions/particles during death; then fade to GAME_OVER."""
         self.explosions.update(dt)
         self._update_particles(dt)
+        DamageNumber.update_all(self._damage_numbers, dt)
         if self._shake_timer > 0:
             self._shake_timer -= 1
         self._death_timer -= dt
@@ -1147,6 +1186,6 @@ class Game:
 
         # Version tag
         ver = render_shadowed(self.small_font,
-                              "v1.7.0  -  Yehor Petrenko",
+                              "Serpentis v1.7.0   |   Developer: Yehor Petrenko",
                               (50, 45, 70))
         cv.blit(ver, ver.get_rect(centerx=cx, bottom=_LOGICAL_H - 14))

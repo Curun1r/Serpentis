@@ -442,11 +442,15 @@ class MiniBoss(Sprite):
         self._HIT_FLASH_DURATION = 0.10
 
         self.x = float(config.SCREEN_WIDTH // 2 - self.width // 2)
-        self.y = float(22)
+        # Spawn above screen and slide in — no visible teleport on appearance
+        self._rest_y      = 22.0
+        self.y            = float(-self.height - 8)
+        self._entering    = True
+        self._enter_speed = 260.0
         self.rect     = self.image.get_rect(x=int(self.x), y=int(self.y))
         self.speed_x  = 110.0 + wave * 4.0   # faster than full boss
 
-        # Smaller hit rect (70%)
+        # Smaller hit rect (70%) — only active after entrance
         hw = int(self.width  * 0.70)
         hh = int(self.height * 0.70)
         self.hit_rect = pygame.Rect(0, 0, hw, hh)
@@ -468,6 +472,17 @@ class MiniBoss(Sprite):
         if self._hit_flash > 0:
             self._hit_flash = max(0.0, self._hit_flash - dt)
         self.image = self._img_flash if self._hit_flash > 0 else self._img_normal
+
+        # Slide-in entrance: descend from above the screen
+        if self._entering:
+            self.y += self._enter_speed * dt
+            if self.y >= self._rest_y:
+                self.y = self._rest_y
+                self._entering = False
+            self.rect.x = int(self.x)
+            self.rect.y = int(self.y)
+            self.hit_rect.center = self.rect.center
+            return   # no lateral movement or shooting while entering
 
         self.x += self.speed_x * dt
         if self.x <= 0:

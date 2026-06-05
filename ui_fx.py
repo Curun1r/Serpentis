@@ -146,6 +146,97 @@ def draw_fancy_button(surface: pygame.Surface,
     surface.blit(txt, txt.get_rect(center=rect.center))
 
 
+# ---------------------------------------------------------------------------
+# Floating damage numbers
+# ---------------------------------------------------------------------------
+
+class DamageNumber:
+    """A floating text label that rises and fades out over its lifetime.
+
+    Usage::
+        nums: list[DamageNumber] = []
+        # spawn
+        nums.append(DamageNumber(cx, cy, "+50", (255, 215, 0), font))
+        # each frame
+        DamageNumber.update_all(nums, dt)
+        DamageNumber.draw_all(nums, surface)
+    """
+
+    # Presets so callers don't need to hardcode colours
+    COLOR_SCORE   = (255, 215,  50)   # gold  — alien kill score
+    COLOR_HIT     = (255, 255, 255)   # white — armored-alien chip damage
+    COLOR_BOSS    = (255, 100, 255)   # pink  — boss hit
+    COLOR_PLAYER  = (255,  60,  60)   # red   — player takes damage
+
+    def __init__(self, x: float, y: float, text: str,
+                 color: tuple, font: pygame.font.Font,
+                 lifetime: float = 0.9,
+                 rise_speed: float = 55.0,
+                 scale: float = 1.0):
+        self.x          = float(x)
+        self.y          = float(y)
+        self.lifetime   = lifetime
+        self.max_life   = lifetime
+        self.rise_speed = rise_speed
+
+        # Pre-render with outline for readability over any background
+        base    = font.render(text, True, color)
+        outline = font.render(text, True, (0, 0, 0))
+        bw, bh  = base.get_size()
+        thick   = 1
+        raw     = pygame.Surface((bw + thick * 2, bh + thick * 2), pygame.SRCALPHA)
+        for dx in (-thick, 0, thick):
+            for dy in (-thick, 0, thick):
+                if dx == 0 and dy == 0:
+                    continue
+                raw.blit(outline, (dx + thick, dy + thick))
+        raw.blit(base, (thick, thick))
+
+        if scale != 1.0:
+            sw = max(1, int(raw.get_width()  * scale))
+            sh = max(1, int(raw.get_height() * scale))
+            raw = pygame.transform.smoothscale(raw, (sw, sh))
+
+        self._surf = raw
+
+    # ------------------------------------------------------------------
+
+    def update(self, dt: float):
+        self.y        -= self.rise_speed * dt
+        self.lifetime -= dt
+
+    def draw(self, surface: pygame.Surface):
+        ratio = max(0.0, self.lifetime / self.max_life)
+        alpha = int(255 * ratio)
+        if alpha <= 0:
+            return
+        # set_alpha() is ignored on SRCALPHA surfaces in pygame — use
+        # BLEND_RGBA_MULT to multiply every pixel's alpha channel instead.
+        surf = self._surf.copy()
+        surf.fill((255, 255, 255, alpha), special_flags=pygame.BLEND_RGBA_MULT)
+        cx = int(self.x) - surf.get_width()  // 2
+        cy = int(self.y) - surf.get_height() // 2
+        surface.blit(surf, (cx, cy))
+
+    @property
+    def alive(self) -> bool:
+        return self.lifetime > 0
+
+    # ------------------------------------------------------------------
+    # Batch helpers
+
+    @staticmethod
+    def update_all(nums: list, dt: float):
+        for n in nums:
+            n.update(dt)
+        nums[:] = [n for n in nums if n.alive]
+
+    @staticmethod
+    def draw_all(nums: list, surface: pygame.Surface):
+        for n in nums:
+            n.draw(surface)
+
+
 def draw_glass_panel(surface: pygame.Surface,
                      rect: pygame.Rect,
                      bg_color: tuple = (12, 12, 28),

@@ -236,8 +236,16 @@ _BUILDERS = {
 }
 
 
+_SHIP_SCALE = 0.88   # shrink all ships by ~12 %
+
+
 def build_ship(ship_id: str) -> pygame.Surface:
     fn = _BUILDERS.get(ship_id)
     if fn is None:
         raise ValueError(f"Unknown ship id: {ship_id!r}")
-    return fn()
+    surf = fn()
+    if _SHIP_SCALE != 1.0:
+        w, h = surf.get_size()
+        surf = pygame.transform.smoothscale(
+            surf, (max(1, int(w * _SHIP_SCALE)), max(1, int(h * _SHIP_SCALE))))
+    return surf
