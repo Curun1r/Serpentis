@@ -26,11 +26,11 @@ Destroy waves of alien invaders, survive boss encounters, collect power-ups, and
   </tr>
   <tr>
     <td><img src="screenshots/game_over.png" alt="Game Over" width="400"/></td>
-    <td></td>
+    <td><img src="screenshots/settings.png" alt="Settings" width="400"/></td>
   </tr>
   <tr>
     <td align="center"><em>Game Over & Leaderboard</em></td>
-    <td></td>
+    <td align="center"><em>Settings</em></td>
   </tr>
 </table>
 
