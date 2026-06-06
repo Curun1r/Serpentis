@@ -1,14 +1,27 @@
 # Python
 __pycache__/
-*.pyc
+*.py[cod]
 *.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+env/
 
 # IDE
 .idea/
 .vscode/
+*.swp
+*.swo
 
 # macOS
 .DS_Store
+.AppleDouble
+
+# Windows
+Thumbs.db
+Desktop.ini
 
 # PyInstaller
 dist/
@@ -24,3 +37,6 @@ config.json
 # macOS app bundle (generated locally)
 *.app
 icon.iconset/
+
+# Pipenv lock (optional — remove this line if you want reproducible installs)
+Pipfile.lock
