@@ -1,7 +1,9 @@
 import json
 import os
 
-SETTINGS_FILE = 'data/settings.json'
+from paths import user_data_dir
+
+SETTINGS_FILE = os.path.join(user_data_dir(), 'settings.json')
 
 RESOLUTIONS  = [(1024, 768), (1280, 720), (1920, 1080), (2560, 1440)]
 FRAMERATES   = [30, 60, 120, 144]

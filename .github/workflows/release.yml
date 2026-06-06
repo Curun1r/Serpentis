@@ -1,0 +1,100 @@
+name: Build & Release
+
+# Builds standalone Serpentis executables for Windows, macOS and Linux
+# with PyInstaller, then attaches them to a GitHub Release.
+#
+# Trigger a release by tagging a commit and pushing the tag:
+#   git tag v1.7.1
+#   git push origin v1.7.1
+#
+# You can also run it manually from the Actions tab (workflow_dispatch).
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            platform: macOS
+            artifact: Serpentis-macOS.zip
+          - os: windows-latest
+            platform: Windows
+            artifact: Serpentis-Windows.exe
+          - os: ubuntu-latest
+            platform: Linux
+            artifact: Serpentis-Linux.tar.gz
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller pillow
+
+      # macOS: --windowed produces a Serpentis.app bundle; zip it for distribution.
+      - name: Build (macOS)
+        if: matrix.platform == 'macOS'
+        shell: bash
+        run: |
+          pyinstaller --onefile --windowed --name Serpentis \
+            --icon icon.icns --add-data "image:image" main.py
+          cd dist && zip -r "../${{ matrix.artifact }}" Serpentis.app
+
+      # Windows needs a .ico — generate one from the existing iconset on the fly.
+      - name: Build (Windows)
+        if: matrix.platform == 'Windows'
+        shell: bash
+        run: |
+          python -c "from PIL import Image; Image.open('icon.iconset/icon_256x256.png').save('icon.ico')"
+          pyinstaller --onefile --windowed --name Serpentis \
+            --icon icon.ico --add-data "image;image" main.py
+          mv dist/Serpentis.exe "${{ matrix.artifact }}"
+
+      # Linux: plain onefile binary, packed as tar.gz to keep the executable bit.
+      - name: Build (Linux)
+        if: matrix.platform == 'Linux'
+        shell: bash
+        run: |
+          pyinstaller --onefile --name Serpentis \
+            --add-data "image:image" main.py
+          chmod +x dist/Serpentis
+          tar -czf "${{ matrix.artifact }}" -C dist Serpentis
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform }}
+          path: ${{ matrix.artifact }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

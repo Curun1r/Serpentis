@@ -3,7 +3,9 @@ import json
 import os
 from datetime import datetime
 
-SCORES_FILE  = 'data/scores.json'
+from paths import user_data_dir
+
+SCORES_FILE  = os.path.join(user_data_dir(), 'scores.json')
 MAX_ENTRIES  = 5
 
 
