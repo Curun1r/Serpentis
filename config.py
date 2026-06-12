@@ -24,7 +24,7 @@ _cfg = _load()
 # --- Screen ---
 SCREEN_WIDTH: int   = _cfg.get('screen', {}).get('width',   1200)
 SCREEN_HEIGHT: int  = _cfg.get('screen', {}).get('height',  750)
-GAME_CAPTION: str   = _cfg.get('screen', {}).get('caption', 'Awesome Shooter Game')
+GAME_CAPTION: str   = _cfg.get('screen', {}).get('caption', 'Serpentis')
 
 # --- Speeds (pixels per second, used with delta time) ---
 FIGHTER_SPEED: float = _cfg.get('speeds', {}).get('fighter', 230)

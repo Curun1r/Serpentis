@@ -5,6 +5,23 @@ Destroy waves of alien invaders, survive boss encounters, collect power-ups, and
 
 ---
 
+## Download
+
+**No Python required — just download and play.**
+
+| Platform | Download |
+|----------|----------|
+| 🪟 Windows | [Serpentis-Windows.exe](https://github.com/SaruUa/Space-shooter/releases/latest/download/Serpentis-Windows.exe) |
+| 🍎 macOS | [Serpentis-macOS.zip](https://github.com/SaruUa/Space-shooter/releases/latest/download/Serpentis-macOS.zip) |
+| 🐧 Linux | [Serpentis-Linux.tar.gz](https://github.com/SaruUa/Space-shooter/releases/latest/download/Serpentis-Linux.tar.gz) |
+
+Or browse all releases → **[github.com/SaruUa/Space-shooter/releases](https://github.com/SaruUa/Space-shooter/releases)**
+
+> **macOS note:** after unzipping, right-click `Serpentis.app` → Open (first launch only, to bypass Gatekeeper).  
+> **Linux note:** extract the archive, then `chmod +x Serpentis && ./Serpentis`.
+
+---
+
 ## Screenshots
 
 <table>
