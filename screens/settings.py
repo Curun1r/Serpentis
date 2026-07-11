@@ -1,6 +1,6 @@
 """Settings screen."""
 import pygame
-from settings_manager import Settings, RESOLUTIONS, FRAMERATES
+from settings_manager import Settings, FRAMERATES
 
 
 class SettingsScreen:

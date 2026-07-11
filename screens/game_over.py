@@ -30,9 +30,7 @@ class GameOverScreen:
 
     def draw(self, canvas: pygame.Surface, game):
         sw    = game.screen_width
-        sh    = game.screen_height
         cx    = sw // 2
-        cy    = sh // 2
         mouse = game._lmouse()
 
         # Title

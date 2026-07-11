@@ -158,6 +158,7 @@ music.py             — procedural background music player
 background.py        — parallax star field
 config.py            — runtime constants (loaded from config.json)
 screens/             — start, ship select, game over, pause, settings
+tests/               — pytest suite for the pure-logic modules
 ```
 
 ---

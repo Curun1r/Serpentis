@@ -4,7 +4,6 @@ All functions draw onto existing pygame.Surface objects and return nothing,
 unless noted otherwise.
 """
 import pygame
-import math
 
 
 # ---------------------------------------------------------------------------

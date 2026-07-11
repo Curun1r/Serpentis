@@ -4,7 +4,7 @@ import math
 import pygame
 from ship import SHIPS
 from ui_fx import (draw_fancy_button, draw_glass_panel,
-                   render_glowing, render_shadowed)
+                   render_shadowed)
 
 
 class StartScreen:
@@ -48,7 +48,6 @@ class StartScreen:
         sw    = game.screen_width
         sh    = game.screen_height
         cx    = sw // 2
-        cy    = sh // 2
         mouse = game._lmouse()
         t     = pygame.time.get_ticks() / 1000.0
 

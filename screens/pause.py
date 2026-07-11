@@ -1,5 +1,4 @@
 """Pause overlay."""
-import sys
 import pygame
 from settings_manager import Settings
 

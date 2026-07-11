@@ -7,7 +7,6 @@
 All sprites face UP (nose at top).
 """
 import pygame
-import math
 
 
 # ---------------------------------------------------------------------------
@@ -157,7 +156,6 @@ def _build_hydra() -> pygame.Surface:
     W, H = 68, 60
     surf = pygame.Surface((W, H), pygame.SRCALPHA)
     cx = W // 2
-    cy = H // 2
 
     # ── Wide armoured hull ────────────────────────────────────────────
     hull = [

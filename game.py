@@ -10,7 +10,7 @@ from alien_bullet import AlienBullet
 from ball import Ball
 from boss import Boss, MiniBoss
 from powerup import TripleShotPowerUp, ShieldPowerUp, SlowTimePowerUp, HeartPowerUp
-from config import GAME_CAPTION, STARTING_LIVES
+from config import GAME_CAPTION
 from assets import Assets
 from score_manager import ScoreManager
 from settings_manager import Settings
@@ -18,7 +18,7 @@ from explosion import Explosion
 from ship import ShipConfig, SHIPS
 from ship_sprites import build_ship
 from background import StarBackground
-from ui_fx import draw_glass_panel, render_shadowed, render_outlined, draw_glow_circle, DamageNumber
+from ui_fx import draw_glass_panel, render_shadowed, render_outlined, DamageNumber
 from music import MusicPlayer
 
 from screens.start      import StartScreen
@@ -952,7 +952,6 @@ class Game:
     def _draw_engine_trail(self, surface: pygame.Surface):
         for p in self._engine_particles:
             ratio = p['life'] / p['max_life']
-            alpha = int(220 * ratio)
             s     = max(1, int(p['size'] * ratio))
             col   = (int(p['r'] * ratio), int(p['g'] * ratio), int(p['b'] * ratio))
             pygame.draw.circle(surface, col, (int(p['x']), int(p['y'])), s)
@@ -978,7 +977,6 @@ class Game:
         self._draw_mini_boss_hp_bar(surface)
         self._draw_powerup_hud(surface)
 
-        sw = config.SCREEN_WIDTH
 
         # ── Left HUD panel ────────────────────────────────────────────
         panel_w, panel_h = 310, 62

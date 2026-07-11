@@ -1,0 +1,14 @@
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+exclude = ["icon.iconset"]
+
+[tool.ruff.lint]
+# Defaults (E4/E7/E9 pycodestyle errors + F pyflakes) — real bugs, no style churn.
+select = ["E4", "E7", "E9", "F"]
+# Compact one-line `if cond: action` style is intentional in this codebase.
+ignore = ["E701", "E702"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
