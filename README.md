@@ -113,32 +113,87 @@ On macOS, **AUTO** resolution is enabled by default. Fullscreen uses the current
 
 ## Installation
 
-**Requirements:** Python 3.10+ and pygame 2.5+
+**Requirements:** Python 3.10 or newer. Python 3.12 is used for desktop releases.
+Internet access is needed for the first source setup or when dependencies change.
 
 ```bash
 git clone https://github.com/Curun1r/Serpentis.git
 cd Serpentis
 ```
 
-**With pip:**
-```bash
-pip install -r requirements.txt
-python main.py
-```
+**Source launchers:**
 
-**With pipenv:**
-```bash
-pipenv install
-pipenv run python main.py
-```
-
-**One-click launchers:**
-
-| Platform | File |
-|----------|------|
+| Platform | Launch |
+|----------|--------|
 | macOS | double-click `run.command` |
 | Linux | `bash run.sh` |
 | Windows | double-click `run.bat` |
+
+The launchers prepare a project-local `.venv`, install the complete dependency list there,
+and reuse it on later runs. They do not install packages into the system Python and do not require Pipenv.
+An existing valid `.venv` (including a symlink to a Pipenv environment) is preserved.
+The launcher stops if setup fails; it never starts the game with a failed installation.
+
+**Setup without opening the game:**
+
+```bash
+python3 launcher.py --setup
+python3 launcher.py --check
+```
+
+On Windows, use `python` in place of `python3`, or run `run.bat --setup` / `run.bat --check`.
+The same options work with `run.command` and `run.sh`.
+After setup, the source launchers work offline while the dependency list remains unchanged.
+`--check` makes no changes and returns a nonzero exit code if setup or repair is needed.
+
+**PyCharm:** open this folder, select `.venv/bin/python` on macOS/Linux or
+`.venv\Scripts\python.exe` on Windows as the project interpreter, and run `main.py`.
+If the environment is missing, run the source launcher once or use `launcher.py --setup` first.
+The game resolves its images, configuration and saves independently of PyCharm's working directory.
+
+**Manual environment:**
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python main.py
+```
+
+On Windows, use `.venv\Scripts\python.exe` for the last two commands.
+Pipenv remains an optional alternative: `pipenv install` followed by `pipenv run python main.py`.
+
+## Startup checks and releases
+
+A bounded check starts the real game with invisible SDL drivers, renders all eight screens,
+loads bundled images, generates audio, and verifies settings and scores in disposable save data:
+
+```bash
+.venv/bin/python main.py --smoke-test --smoke-report startup-report.json
+```
+
+The report includes the application/version and success status. This check leaves player saves untouched.
+Normal startup failures are recorded in `data/startup.log` for source runs, or in the application's
+per-user save folder for desktop builds. Source saves stay in this project's `data/` directory regardless
+of the working directory. Packaged saves remain in:
+
+- macOS: `~/Library/Application Support/Serpentis/`
+- Windows: `%APPDATA%\Serpentis\`
+- Linux: `$XDG_DATA_HOME/Serpentis/`, or `~/.local/share/Serpentis/` by default.
+
+`SERPENTIS_DATA_DIR` can explicitly select another save folder for isolated testing.
+If source setup fails, check the launcher's error message and retry `--setup` after fixing the cause.
+An incomplete `.venv` is reported rather than overwritten; preserve any files you need before replacing it.
+
+CI checks Windows, macOS and Linux on Python 3.12, plus the Python 3.10 minimum on Linux.
+On all three platforms it also tests the source launcher from a clean copy in a path with spaces,
+including first setup, dependency checks, and reuse of the prepared environment.
+Release builds must pass `scripts/verify_build.py` against the actual executable, from an unrelated
+working directory, before they are archived or uploaded. Every new release also includes
+`SHA256SUMS.txt` for its three desktop downloads.
+
+Before publishing, update `APP_VERSION` in `app_info.py` and `RELEASE_NOTES.md`, then tag the matching
+commit with `serpentis_<version>`. A manual **Build & Release** run on a branch creates test artifacts
+without publishing a release. No release is created by an ordinary commit or branch push.
 
 ---
 
@@ -157,7 +212,8 @@ cp config.example.json config.json
 ## Project structure
 
 ```
-main.py              — entry point
+main.py              — entry point, startup diagnostics and bounded smoke check
+launcher.py          — isolated source setup and launch for all platforms
 app_info.py          — shared application name, tagline, and release version
 game.py              — main loop, state machine, collision logic
 fighter.py           — player ship (movement, dash)
@@ -177,7 +233,9 @@ settings_manager.py  — volume, resolution, difficulty, fullscreen (JSON)
 assets.py            — image / sound cache + procedural audio
 music.py             — procedural background music player
 background.py        — parallax star field
-config.py            — runtime constants (loaded from config.json)
+config.py            — runtime constants (loaded from project config.json)
+paths.py             — source/bundled resources and persistent save locations
+scripts/             — built-executable verification and release checksums
 screens/             — start, ship select, game over, pause, settings, controls
 tests/               — pytest suite for logic and headless gameplay regressions
 ```

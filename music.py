@@ -145,7 +145,8 @@ class MusicPlayer:
         self._pending  = ''   # track to start once ready
 
         # Build both tracks in background
-        threading.Thread(target=self._build_bg, daemon=True).start()
+        self._build_thread = threading.Thread(target=self._build_bg, daemon=True)
+        self._build_thread.start()
 
     def _build_bg(self):
         self._tracks['menu']   = _build_menu()
@@ -196,6 +197,11 @@ class MusicPlayer:
         if self._channel:
             self._channel.stop()
         self._current = ''
+
+    def close(self):
+        """Finish background synthesis before the mixer is shut down."""
+        self._build_thread.join()
+        self.stop()
 
     def set_volume(self, vol: float):
         self._volume = max(0.0, min(1.0, vol))

@@ -69,6 +69,7 @@ jobs:
         shell: bash
         run: |
           pyinstaller packaging/serpentis-macos.spec
+          python scripts/verify_build.py dist/Serpentis.app/Contents/MacOS/Serpentis
           cd dist && zip -r -y "../${{ matrix.artifact }}" Serpentis.app
 
       # Windows needs a .ico — convert the tracked Serpentis icon on the fly.
@@ -79,6 +80,7 @@ jobs:
           python -c "from PIL import Image; Image.open('serpentis.icns').save('serpentis.ico', sizes=[(16, 16), (32, 32), (48, 48), (256, 256)])"
           pyinstaller --onefile --windowed --name Serpentis \
             --icon serpentis.ico --add-data "image;image" main.py
+          python scripts/verify_build.py dist/Serpentis.exe
           mv dist/Serpentis.exe "${{ matrix.artifact }}"
 
       # Linux: plain onefile binary, packed as tar.gz to keep the executable bit.
@@ -89,6 +91,7 @@ jobs:
           pyinstaller --onefile --name Serpentis \
             --add-data "image:image" main.py
           chmod +x dist/Serpentis
+          python scripts/verify_build.py dist/Serpentis
           tar -czf "${{ matrix.artifact }}" -C dist Serpentis
 
       - uses: actions/upload-artifact@v4
@@ -110,6 +113,9 @@ jobs:
         with:
           path: artifacts
           merge-multiple: true
+
+      - name: Generate download checksums
+        run: python scripts/checksums.py artifacts
 
       - uses: softprops/action-gh-release@v2
         with:

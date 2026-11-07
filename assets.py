@@ -1,6 +1,7 @@
 import pygame
 import array
 import math
+from paths import resource_path
 
 
 class Assets:
@@ -12,7 +13,7 @@ class Assets:
     @classmethod
     def get_image(cls, path: str) -> pygame.Surface:
         if path not in cls._images:
-            cls._images[path] = pygame.image.load(path).convert_alpha()
+            cls._images[path] = pygame.image.load(resource_path(path)).convert_alpha()
         return cls._images[path]
 
     @classmethod

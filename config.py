@@ -2,8 +2,9 @@ import json
 import os
 
 from app_info import APP_NAME
+from paths import resource_path
 
-_CONFIG_FILE = 'config.json'
+_CONFIG_FILE = resource_path('config.json')
 
 
 def _load() -> dict:

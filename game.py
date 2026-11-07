@@ -92,11 +92,6 @@ class Game:
         self.ui_nav_sound    = Assets.make_chirp('ui_nav',   900, 700, 0.04, 0.22)
         self._apply_volume()
 
-        # ── Music ─────────────────────────────────────────────────────────
-        self._music = MusicPlayer()
-        self._music.set_volume(Settings.get().volume * 0.5)
-        self._music.play_menu()
-
         # ── Assets ────────────────────────────────────────────────────────
         self.background = StarBackground(_LOGICAL_W, _LOGICAL_H)
 
@@ -142,6 +137,11 @@ class Game:
         self.state = GameState.LOADING
         self._loading_timer = 2.5   # seconds to show splash
         self._init_game()
+
+        # ── Music ─────────────────────────────────────────────────────────
+        self._music = MusicPlayer()
+        self._music.set_volume(Settings.get().volume * 0.5)
+        self._music.play_menu()
 
     # ------------------------------------------------------------------
     # Layout & display helpers
@@ -306,7 +306,6 @@ class Game:
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
-                    pygame.quit()
                     sys.exit()
                 self._handle_event(event)
 
@@ -370,7 +369,6 @@ class Game:
         if not action or self._fade_next_state is not None:
             return
         if action == 'quit':
-            pygame.quit()
             sys.exit()
         if self.state == GameState.START:
             target = {'play': GameState.SHIP_SELECT, 'settings': GameState.SETTINGS,

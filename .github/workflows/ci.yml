@@ -1,29 +1,60 @@
 name: CI
 
-# Lint + tests on every push and pull request.
-
 on:
   push:
   pull_request:
 
 jobs:
   lint-and-test:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python: '3.10'
+          - os: ubuntu-latest
+            python: '3.12'
+          - os: macos-latest
+            python: '3.12'
+          - os: windows-latest
+            python: '3.12'
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: ${{ matrix.python }}
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install ruff pytest
+          python -m pip install -r requirements.txt
+          python -m pip install ruff pytest
 
       - name: Lint (ruff)
-        run: ruff check .
+        run: python -m ruff check .
 
       - name: Tests (pytest)
-        run: pytest -q
+        run: python -m pytest -q
+
+      - name: Check source startup from another directory
+        shell: python
+        run: |
+          import json
+          from pathlib import Path
+          import subprocess
+          import sys
+          import tempfile
+          root = Path.cwd()
+          sys.path.insert(0, str(root))
+          from scripts.verify_build import validate_report
+          with tempfile.TemporaryDirectory(prefix='serpentis-source-check-') as folder:
+              report = Path(folder) / 'source-report.json'
+              subprocess.run([sys.executable, str(root / 'main.py'), '--smoke-test',
+                              '--smoke-report', str(report)], cwd=folder, check=True, timeout=30)
+              validate_report(json.loads(report.read_text(encoding='utf-8')))
+
+      - name: Check clean source launcher and environment reuse
+        if: matrix.python == '3.12'
+        run: python scripts/check_launcher.py

@@ -2,6 +2,7 @@
 import json
 
 import config
+from paths import resource_path
 
 
 def test_load_missing_file(tmp_path, monkeypatch):
@@ -36,6 +37,6 @@ def test_module_constants_have_sane_values():
 
 def test_example_config_matches_expected_schema():
     """config.example.json must stay parseable and use only known sections."""
-    with open('config.example.json') as f:
+    with open(resource_path('config.example.json')) as f:
         example = json.load(f)
     assert set(example) <= {'screen', 'speeds', 'scales', 'gameplay'}
