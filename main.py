@@ -74,6 +74,12 @@ def _run(smoke):
     try:
         _initialize_pygame(pygame)
         from game import Game
+        if smoke:
+            from settings_manager import Settings
+            settings = Settings.get()
+            settings.auto_resolution = False
+            settings.resolution_index = 1  # deterministic 1280x720 headless display
+            settings.fullscreen = False
         game = Game()
         if smoke:
             return _smoke_test(game)
