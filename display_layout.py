@@ -3,17 +3,25 @@ import pygame
 
 
 DEFAULT_SIZE = (1280, 720)
+_display_index = 0
+
+
+def remember_display(index: int) -> None:
+    """Track the monitor reported by SDL's WINDOWDISPLAYCHANGED event."""
+    global _display_index
+    _display_index = max(0, int(index))
 
 
 def current_display_index() -> int:
-    """Return the monitor containing the existing window, or the primary display."""
+    """Return the last monitor reported by the window, or the primary display.
+
+    Do not construct temporary pygame._sdl2 Window wrappers here. pygame 2.6.1
+    stores their address in SDL window data without retaining them, leaving a
+    dangling pointer when later window events are translated.
+    """
     if not pygame.display.get_init() or pygame.display.get_surface() is None:
         return 0
-    try:
-        from pygame._sdl2.video import Window
-        return max(0, int(Window.from_display_module().display_index))
-    except (ImportError, AttributeError, RuntimeError, ValueError, pygame.error):
-        return 0
+    return _display_index
 
 
 def get_native_resolution(display_index: int | None = None) -> tuple[int, int]:

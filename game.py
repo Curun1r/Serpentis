@@ -28,7 +28,7 @@ from screens.game_over  import GameOverScreen
 from screens.settings   import SettingsScreen
 from screens.pause      import PauseOverlay
 from screens.controls   import ControlsScreen
-from display_layout import current_display_index, get_native_resolution, choose_window_size, fit_viewport
+from display_layout import current_display_index, get_native_resolution, choose_window_size, fit_viewport, remember_display
 from ui_theme import MUTED
 
 
@@ -169,6 +169,7 @@ class Game:
         s = Settings.get()
         self._display_index = current_display_index() if display_index is None else display_index
         self._display_index = max(0, min(self._display_index, pygame.display.get_num_displays() - 1))
+        remember_display(self._display_index)
         self._native_mode = get_native_resolution(self._display_index)
         if s.auto_resolution:
             size = self._native_mode if s.fullscreen else choose_window_size(self._native_mode)
@@ -409,9 +410,13 @@ class Game:
     def _handle_event(self, event):
         if event.type == pygame.WINDOWDISPLAYCHANGED:
             index = getattr(event, 'display_index', current_display_index())
+            index = max(0, min(index, pygame.display.get_num_displays() - 1))
+            remember_display(index)
             if Settings.get().auto_resolution and (
                     index != self._display_index or get_native_resolution(index) != self._native_mode):
                 self._apply_resolution(index)
+            else:
+                self._display_index = index
             return
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_F11:

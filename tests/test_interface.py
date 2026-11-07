@@ -143,6 +143,7 @@ def test_auto_display_follows_monitor_change_once(gameplay, monkeypatch):
     import game as game_module
     game = gameplay
     Settings.get().auto_resolution = True
+    monkeypatch.setattr(pygame.display, 'get_num_displays', lambda: 2)
     monkeypatch.setattr(game_module, 'get_native_resolution', lambda index: (2560, 1440))
     calls = []
     def apply(index):

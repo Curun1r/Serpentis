@@ -1,7 +1,4 @@
 """Native desktop selection and canvas proportions across monitor sizes."""
-import sys
-from types import SimpleNamespace
-
 import pygame
 import pytest
 
@@ -24,11 +21,11 @@ def test_native_resolution_explicit_monitor(desktops, index, expected):
     assert display_layout.get_native_resolution(index) == expected
 
 
-def test_current_monitor_uses_sdl_window_index(monkeypatch):
+def test_current_monitor_uses_remembered_window_event(monkeypatch):
     monkeypatch.setattr(pygame.display, 'get_init', lambda: True)
     monkeypatch.setattr(pygame.display, 'get_surface', lambda: pygame.Surface((1, 1)))
-    window = SimpleNamespace(from_display_module=lambda: SimpleNamespace(display_index=2))
-    monkeypatch.setitem(sys.modules, 'pygame._sdl2.video', SimpleNamespace(Window=window))
+    monkeypatch.setattr(display_layout, '_display_index', 0)
+    display_layout.remember_display(2)
     assert display_layout.current_display_index() == 2
 
 
