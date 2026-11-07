@@ -937,25 +937,29 @@ class Game:
     # ------------------------------------------------------------------
 
     def _spawn_engine_trail(self):
-        """Spawn 1-2 exhaust particles at the ship's engine position."""
+        """Spawn exhaust particles at the ship's engine nozzles."""
         f = self.fighter
         if not (f.is_moving_left or f.is_moving_right or
                 f.is_moving_up  or f.is_moving_down or f.is_dashing):
             return
         ship  = self._selected_ship
         r, g, b = ship.color
-        cx = f.rect.centerx + random.randint(-4, 4)
-        cy = f.rect.bottom  - 4
-        for _ in range(2 if f.is_dashing else 1):
-            self._engine_particles.append({
-                'x': float(cx), 'y': float(cy),
-                'vx': random.uniform(-18, 18),
-                'vy': random.uniform(18, 55),
-                'life': random.uniform(0.18, 0.35),
-                'max_life': 0.35,
-                'r': min(255, r + 80), 'g': min(255, g + 80), 'b': min(255, b + 80),
-                'size': random.randint(2, 4 if f.is_dashing else 3),
-            })
+        # Follow Viper's paired nozzles instead of emitting from the centre keel.
+        nozzles = (-round(f.width * 10 / 46), round(f.width * 10 / 46)) if ship.id == 'viper' else (0,)
+        jitter = 1 if ship.id == 'viper' else 4
+        cy = f.rect.bottom - 4
+        for offset in nozzles:
+            for _ in range(2 if f.is_dashing else 1):
+                cx = f.rect.centerx + offset + random.randint(-jitter, jitter)
+                self._engine_particles.append({
+                    'x': float(cx), 'y': float(cy),
+                    'vx': random.uniform(-18, 18),
+                    'vy': random.uniform(18, 55),
+                    'life': random.uniform(0.18, 0.35),
+                    'max_life': 0.35,
+                    'r': min(255, r + 80), 'g': min(255, g + 80), 'b': min(255, b + 80),
+                    'size': random.randint(2, 4 if f.is_dashing else 3),
+                })
 
     def _update_engine_trail(self, dt: float):
         alive = []

@@ -1,6 +1,6 @@
 # Serpentis
 
-**Current release:** [Serpentis 1.7.4](https://github.com/Curun1r/Serpentis/releases/tag/serpentis_1.7.4)
+**Current release:** [Serpentis 1.8.0](https://github.com/Curun1r/Serpentis/releases/tag/serpentis_1.8.0)
 
 A fast-paced 2-D space shooter built with Python and pygame.  
 Destroy waves of alien invaders, survive boss encounters, collect power-ups, and chase the high score.
@@ -71,7 +71,7 @@ Screenshots show the current source version; downloadable builds remain at the l
 - **4 alien types** — Normal, Armoured (multi-hit), Zigzag, and Shooter aliens that fire back
 - **Mini-boss encounters** — a fast raider appears every wave 3, 8, 13 …
 - **Full boss fights** — every 5th wave; three visual tiers (Phantom → Ravager → Leviathan) each with unique multi-phase attack patterns
-- **3 playable ships** — each with unique procedurally-drawn sprites, stats, and dash timing
+- **3 playable ships** — each with unique procedurally-drawn sprites, stats, and dash timing; Viper now features a faceted emerald hull, swept wings and twin engines
 - **Dash mechanic** — short-range burst in any direction with a cooldown bar
 - **4 power-ups** — Triple Shot, Shield (absorbs one hit + sound), Slow Time, Heart (+1 life)
 - **Floating damage numbers** — real-time score and hit feedback above every enemy

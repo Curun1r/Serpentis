@@ -1,15 +1,34 @@
-# Serpentis 1.7.4
+# Serpentis 1.8.0
 
-This release unifies the game's identity around **Serpentis** and prepares consistent desktop builds.
+A refreshed fleet, cohesive menus, automatic Mac display sizing, and more reliable gameplay.
 
-## Changes
+## New Viper design
 
-- Centralized the application name, tagline, version, and release tag.
-- Updated the menu and loading screen to use the shared identity and display version 1.7.4.
-- Standardized the application icon name across desktop builds.
-- Fixed Windows icon generation to use a file included in the repository.
-- Updated source launchers to install all required dependencies, including NumPy.
-- Enabled release builds for `serpentis_*` tags and required lint, tests, and version verification before building.
+- Redesigned the green Viper as an emerald interceptor with swept wings, a brighter canopy, layered armour, and twin engine nozzles.
+- Added matching paired exhaust trails in flight and updated the hangar and fleet previews.
+- Kept Viper's speed, weapons, dash timing, and collision dimensions unchanged.
+
+## Interface
+
+- Unified the main menu, hangar, settings, pause, and results with readable panels and shared button styles.
+- Added keyboard navigation, visible focus, an explicit launch button, and an in-game How to Play guide.
+- Improved text contrast and replaced unsupported symbols with reliable artwork.
+- Updated screenshots and controls documentation.
+
+## Display and macOS
+
+- Enabled Auto resolution by default on macOS, following the current monitor's desktop mode and system scaling.
+- Windowed Auto leaves room for system panels; fullscreen uses the monitor's desktop resolution.
+- Preserved game proportions on Mac, 4:3 and ultrawide displays, with matching mouse coordinates.
+- Fixed the native crash when opening Settings by removing unsafe temporary SDL window wrappers.
+
+## Gameplay fixes
+
+- Movement keys released while paused no longer leave the ship moving after resume.
+- Fatal collisions stop further damage and record one result per run.
+- Pickups survive wave transitions, including hearts dropped by bosses.
+- Shield rams correctly defeat bosses and award their rewards.
+- Dash cooldown and distance are consistent across frame rates; movement stays inside the screen.
 
 ## Downloads
 
@@ -17,4 +36,4 @@ This release unifies the game's identity around **Serpentis** and prepares consi
 - **macOS:** `Serpentis-macOS.zip` — extract and open `Serpentis.app`.
 - **Linux:** `Serpentis-Linux.tar.gz` — extract, then run `chmod +x Serpentis && ./Serpentis`.
 
-Gameplay and existing Serpentis save locations are unchanged in this release.
+Existing Serpentis scores and preferences are preserved. Manual display resolution remains available in Settings.
