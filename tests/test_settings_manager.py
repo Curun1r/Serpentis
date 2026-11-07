@@ -21,7 +21,7 @@ def test_defaults_when_no_file():
     assert s.volume == 0.3
     assert s.difficulty == 'normal'
     assert s.fullscreen is False
-    assert s.resolution == RESOLUTIONS[s.resolution_index]
+    assert s.resolution == (s.native_resolution if s.auto_resolution else RESOLUTIONS[s.resolution_index])
     assert s.fps == FRAMERATES[s.fps_index]
 
 
@@ -35,6 +35,7 @@ def test_save_load_roundtrip():
     s.difficulty = 'hard'
     s.fullscreen = True
     s.resolution_index = 1
+    s.auto_resolution = False
     s.fps_index = 2
     s.save()
 
@@ -43,6 +44,7 @@ def test_save_load_roundtrip():
     assert loaded.difficulty == 'hard'
     assert loaded.fullscreen is True
     assert loaded.resolution_index == 1
+    assert loaded.auto_resolution is False
     assert loaded.fps_index == 2
 
 
@@ -90,3 +92,39 @@ def test_difficulty_config_is_consistent():
         assert set(cfg) == required, name
         assert cfg['alien_count'] > 0
         assert cfg['starting_lives'] > 0
+
+
+@pytest.mark.parametrize(('platform', 'automatic'), [('darwin', True), ('linux', False), ('win32', False)])
+def test_auto_resolution_platform_default(monkeypatch, platform, automatic):
+    monkeypatch.setattr(settings_manager.sys, 'platform', platform)
+    assert Settings().auto_resolution is automatic
+
+
+def test_legacy_mac_settings_default_to_current_display(settings_file, monkeypatch):
+    monkeypatch.setattr(settings_manager.sys, 'platform', 'darwin')
+    monkeypatch.setattr(settings_manager, 'get_native_resolution', lambda: (3024, 1964))
+    settings_file.write_text(json.dumps({'resolution_index': 2, 'fullscreen': False}))
+    settings = Settings()
+    assert settings.auto_resolution is True
+    assert settings.resolution == (3024, 1964)
+    assert settings.fullscreen is False
+
+
+def test_manual_mac_resolution_override_is_persisted(monkeypatch):
+    monkeypatch.setattr(settings_manager.sys, 'platform', 'darwin')
+    settings = Settings()
+    settings.auto_resolution = False
+    settings.resolution_index = 1
+    settings.save()
+    assert Settings().resolution == (1280, 720)
+
+
+def test_auto_resolution_follows_monitor_changes(monkeypatch):
+    settings = Settings()
+    settings.auto_resolution = True
+    monkeypatch.setattr(settings_manager, 'get_native_resolution', lambda: (2560, 1440))
+    assert settings.resolution == (2560, 1440)
+    monkeypatch.setattr(settings_manager, 'get_native_resolution', lambda: (3440, 1440))
+    assert settings.resolution == (3440, 1440)
+    settings.save()
+    assert Settings().auto_resolution is True

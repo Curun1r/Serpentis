@@ -1,145 +1,128 @@
-"""Pause overlay."""
+"""A readable pause overlay with quick volume and keyboard navigation."""
 import pygame
+
 from settings_manager import Settings
+from ui_theme import (TEXT, MUTED, DIM, CYAN, PURPLE, BORDER,
+                      MenuFocus, panel, text, button, footer)
 
 
 class PauseOverlay:
-    """Semi-transparent pause menu drawn over the frozen game canvas.
+    """Return resume/restart/menu/quit actions to the game controller."""
 
-    Actions returned by handle_click():
-        'resume'    — Resume button
-        'restart'   — Restart button
-        'menu'      — Main Menu button
-        'quit'      — Quit button
-    """
+    _ACTIONS = ('volume', 'resume', 'restart', 'menu', 'quit')
 
     def __init__(self, fonts: dict):
-        self.game_font   = fonts['game']
+        self.game_font = fonts['game']
+        self.small_font = fonts['small']
+        self.med_font = fonts['med']
         self._vol_dragging = False
-
-    # ------------------------------------------------------------------
+        self.focus = MenuFocus(self._ACTIONS)
+        self.focus.select(1)
 
     def _layout(self, sw: int, sh: int) -> dict:
-        cx = sw // 2
-        cy = sh // 2
-
-        panel_w, panel_h = 340, 415
-        panel_x = cx - panel_w // 2
-        panel_y = cy - panel_h // 2
-
-        slider_w, slider_h = 280, 12
-        slider_x = panel_x + (panel_w - slider_w) // 2
-        slider_y = panel_y + 115
-
-        btn_w, btn_h = 210, 44
-        btn_x = cx - btn_w // 2
-
+        cx, cy = sw // 2, sh // 2
+        rect = pygame.Rect(cx - 220, cy - 270, 440, 540)
+        sx, sy, slider_w = rect.x + 32, rect.y + 166, 376
         return {
-            'panel':      pygame.Rect(panel_x, panel_y, panel_w, panel_h),
-            'slider_x':   slider_x,  'slider_y': slider_y,
-            'slider_w':   slider_w,  'slider_h': slider_h,
-            'slider_hit': pygame.Rect(slider_x - 8, slider_y - 10,
-                                      slider_w + 16, slider_h + 20),
-            'resume_rect':  pygame.Rect(btn_x, panel_y + 165, btn_w, btn_h),
-            'restart_rect': pygame.Rect(btn_x, panel_y + 221, btn_w, btn_h),
-            'menu_rect':    pygame.Rect(btn_x, panel_y + 277, btn_w, btn_h),
-            'quit_rect':    pygame.Rect(btn_x, panel_y + 349, btn_w, btn_h),
+            'panel': rect,
+            'slider_x': sx, 'slider_y': sy, 'slider_w': slider_w, 'slider_h': 10,
+            'slider_hit': pygame.Rect(sx - 8, sy - 12, slider_w + 16, 34),
+            'resume_rect': pygame.Rect(rect.x + 32, rect.y + 216, 376, 48),
+            'restart_rect': pygame.Rect(rect.x + 32, rect.y + 278, 376, 48),
+            'menu_rect': pygame.Rect(rect.x + 32, rect.y + 340, 376, 48),
+            'quit_rect': pygame.Rect(rect.x + 32, rect.y + 440, 376, 48),
         }
 
-    # ------------------------------------------------------------------
-
     def draw(self, canvas: pygame.Surface, game):
-        s   = Settings.get()
         lay = self._layout(game.screen_width, game.screen_height)
-        cx  = game.screen_width // 2
+        s = Settings.get()
         mouse = game._lmouse()
-
-        # Dimmer
-        dimmer = pygame.Surface((game.screen_width, game.screen_height), pygame.SRCALPHA)
-        dimmer.fill((0, 0, 0, 155))
+        dimmer = pygame.Surface(canvas.get_size(), pygame.SRCALPHA)
+        dimmer.fill((3, 6, 16, 185))
         canvas.blit(dimmer, (0, 0))
-
-        # Panel
-        panel = lay['panel']
-        panel_surf = pygame.Surface((panel.w, panel.h), pygame.SRCALPHA)
-        panel_surf.fill((18, 18, 32, 235))
-        canvas.blit(panel_surf, (panel.x, panel.y))
-        pygame.draw.rect(canvas, (65, 65, 100), panel, 2, border_radius=12)
-
-        # Title
-        title = self.game_font.render("PAUSED", True, (220, 220, 255))
-        canvas.blit(title, title.get_rect(center=(cx, panel.y + 42)))
-
-        pygame.draw.line(canvas, (55, 55, 85),
-                         (panel.x + 20, panel.y + 66),
-                         (panel.right - 20, panel.y + 66))
-
-        # Volume
-        canvas.blit(self.game_font.render("VOLUME", True, (150, 150, 175)),
-                    (lay['slider_x'], lay['slider_y'] - 26))
-        sx, sy, sw, sh = lay['slider_x'], lay['slider_y'], lay['slider_w'], lay['slider_h']
-        pygame.draw.rect(canvas, (55, 55, 70), (sx, sy, sw, sh), border_radius=6)
-        fill_w = int(sw * s.volume)
-        if fill_w > 0:
-            pygame.draw.rect(canvas, (0, 190, 255), (sx, sy, fill_w, sh), border_radius=6)
-        knob_x = sx + fill_w
-        pygame.draw.circle(canvas, (210, 210, 210), (knob_x, sy + sh // 2), 9)
-        canvas.blit(self.game_font.render(f"{int(s.volume * 100)}%", True, 'white'),
-                    (sx + sw + 14, sy - 4))
-
-        # Buttons
-        btns = [
-            (lay['resume_rect'],  "RESUME",    (35, 130, 55),  (55, 180, 75)),
-            (lay['restart_rect'], "RESTART",   (40, 55,  130), (60, 85,  180)),
-            (lay['menu_rect'],    "MAIN MENU", (60, 60,  80),  (90, 90,  120)),
-        ]
-        for rect, label, color, hover_color in btns:
-            c = hover_color if rect.collidepoint(mouse) else color
-            pygame.draw.rect(canvas, c, rect, border_radius=8)
-            pygame.draw.rect(canvas, (90, 90, 130), rect, 1, border_radius=8)
-            t = self.game_font.render(label, True, 'white')
-            canvas.blit(t, t.get_rect(center=rect.center))
-
-        sep_y = lay['quit_rect'].y - 12
-        pygame.draw.line(canvas, (55, 55, 85),
-                         (panel.x + 30, sep_y), (panel.right - 30, sep_y))
-        q_rect  = lay['quit_rect']
-        q_color = (185, 45, 45) if q_rect.collidepoint(mouse) else (130, 35, 35)
-        pygame.draw.rect(canvas, q_color, q_rect, border_radius=8)
-        pygame.draw.rect(canvas, (200, 60, 60), q_rect, 1, border_radius=8)
-        qt = self.game_font.render("QUIT", True, 'white')
-        canvas.blit(qt, qt.get_rect(center=q_rect.center))
-
-        hint = self.game_font.render("ESC  /  P  to resume", True, (80, 80, 105))
-        canvas.blit(hint, hint.get_rect(center=(cx, panel.bottom + 20)))
-
-    # ------------------------------------------------------------------
+        box = lay['panel']
+        panel(canvas, box)
+        text(canvas, self.small_font, 'TAKE A BREATHER', (box.centerx, box.y + 28), PURPLE,
+             anchor='midtop')
+        text(canvas, self.med_font, 'PAUSED', (box.centerx, box.y + 59), anchor='midtop')
+        text(canvas, self.small_font, f'WAVE {game.wave}   /   SCORE {game.game_score}',
+             (box.centerx, box.y + 103), MUTED, anchor='midtop')
+        text(canvas, self.small_font, 'MASTER VOLUME', (box.x + 32, box.y + 136),
+             CYAN if self.focus.active(0) else MUTED)
+        text(canvas, self.small_font, f'{round(s.volume * 100)}%',
+             (box.right - 32, box.y + 136), TEXT, anchor='topright')
+        slider = pygame.Rect(lay['slider_x'], lay['slider_y'], lay['slider_w'], lay['slider_h'])
+        pygame.draw.rect(canvas, BORDER, slider, border_radius=5)
+        fill = slider.copy()
+        fill.w = round(slider.w * s.volume)
+        if fill.w:
+            pygame.draw.rect(canvas, CYAN, fill, border_radius=5)
+        pygame.draw.circle(canvas, TEXT, (slider.x + fill.w, slider.centery), 7)
+        if self.focus.active(0):
+            pygame.draw.rect(canvas, CYAN, lay['slider_hit'], 1, border_radius=8)
+        for i, (name, label) in enumerate((('resume', 'RESUME FLIGHT'), ('restart', 'RESTART'),
+                                           ('menu', 'MAIN MENU'), ('quit', 'QUIT GAME')), start=1):
+            rect = lay[f'{name}_rect']
+            button(canvas, rect, label, self.game_font,
+                   hover=rect.collidepoint(mouse), focused=self.focus.active(i),
+                   primary=name == 'resume', danger=name == 'quit')
+        pygame.draw.line(canvas, BORDER, (box.x + 32, box.y + 412),
+                         (box.right - 32, box.y + 412))
+        text(canvas, self.small_font, 'Your flight is frozen until you resume.',
+             (box.centerx, box.bottom - 28), DIM, anchor='midbottom')
+        footer(canvas, self.small_font,
+               'UP / DOWN or TAB: focus     LEFT / RIGHT: volume     ENTER: select     ESC / P: resume')
 
     def handle_click(self, lpos: tuple, game) -> str | None:
         lay = self._layout(game.screen_width, game.screen_height)
-
         if lay['slider_hit'].collidepoint(lpos):
+            self.focus.select(0)
             self._vol_dragging = True
             self._update_volume(lpos[0], lay, game)
             return None
-        if lay['resume_rect'].collidepoint(lpos):  return 'resume'
-        if lay['restart_rect'].collidepoint(lpos): return 'restart'
-        if lay['menu_rect'].collidepoint(lpos):    return 'menu'
-        if lay['quit_rect'].collidepoint(lpos):    return 'quit'
+        for i, action in enumerate(self._ACTIONS[1:], start=1):
+            if lay[f'{action}_rect'].collidepoint(lpos):
+                self.focus.select(i)
+                game.ui_click_sound.play()
+                return action
+        return None
+
+    def handle_key(self, key: int, game) -> str | None:
+        if key in (pygame.K_ESCAPE, pygame.K_p):
+            self._finish_volume_drag()
+            return 'resume'
+        if key in (pygame.K_LEFT, pygame.K_RIGHT):
+            if self.focus.active(0):
+                s = Settings.get()
+                delta = -0.05 if key == pygame.K_LEFT else 0.05
+                s.volume = round(max(0.0, min(1.0, s.volume + delta)), 2)
+                game._apply_volume()
+                s.save()
+                game.ui_nav_sound.play()
+            return None
+        action = self.focus.key(key)
+        if key in (pygame.K_UP, pygame.K_DOWN, pygame.K_TAB):
+            self._finish_volume_drag()
+            game.ui_nav_sound.play()
+        if action and action != 'volume':
+            self._finish_volume_drag()
+            game.ui_click_sound.play()
+            return action
         return None
 
     def handle_motion(self, lpos: tuple, game):
         if self._vol_dragging:
-            lay = self._layout(game.screen_width, game.screen_height)
-            self._update_volume(lpos[0], lay, game)
+            self._update_volume(lpos[0], self._layout(game.screen_width, game.screen_height), game)
 
     def handle_mouse_up(self, game):
+        self._finish_volume_drag()
+
+    def _finish_volume_drag(self):
         if self._vol_dragging:
             self._vol_dragging = False
             Settings.get().save()
 
     def _update_volume(self, mouse_x: int, lay: dict, game):
-        ratio = (mouse_x - lay['slider_x']) / lay['slider_w']
         s = Settings.get()
-        s.volume = max(0.0, min(1.0, ratio))
+        s.volume = max(0.0, min(1.0, (mouse_x - lay['slider_x']) / lay['slider_w']))
         game._apply_volume()

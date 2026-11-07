@@ -26,6 +26,8 @@ Or browse all releases → **[github.com/Curun1r/Serpentis/releases](https://git
 
 ## Screenshots
 
+Screenshots show the current source version; downloadable builds remain at the latest release.
+
 <table>
   <tr>
     <td><img src="screenshots/menu.png" alt="Main Menu" width="400"/></td>
@@ -51,6 +53,14 @@ Or browse all releases → **[github.com/Curun1r/Serpentis/releases](https://git
     <td align="center"><em>Game Over & Leaderboard</em></td>
     <td align="center"><em>Settings</em></td>
   </tr>
+  <tr>
+    <td><img src="screenshots/controls.png" alt="How to Play" width="400"/></td>
+    <td><img src="screenshots/pause.png" alt="Pause Menu" width="400"/></td>
+  </tr>
+  <tr>
+    <td align="center"><em>How to Play</em></td>
+    <td align="center"><em>Pause Menu</em></td>
+  </tr>
 </table>
 
 ---
@@ -68,8 +78,10 @@ Or browse all releases → **[github.com/Curun1r/Serpentis/releases](https://git
 - **Visual effects** — particle explosions, engine trail, camera shake, shield ring, slow-time tint
 - **Procedural audio** — every sound generated at runtime via numpy (no audio files required)
 - **Top-5 leaderboard** — persisted to disk, shown on the game-over screen
-- **Settings** — volume, resolution (1024×768 → 2560×1440), difficulty, fullscreen
-- **Sharp on HiDPI / Retina** — fixed 1280×720 logical canvas scaled via `pygame.SCALED`
+- **Settings** — volume, automatic or manual resolution, frame rate, difficulty, fullscreen
+- **Keyboard-friendly menus** — shared focus states, readable panels, and an in-game How to Play guide
+- **Automatic Mac display mode** — follows the current monitor and respects macOS display scaling; manual resolution remains available
+- **Proportional display scaling** — a fixed 1280×720 game canvas with letterboxing on 4:3, ultrawide and Mac displays; mouse input follows the same viewport
 
 ---
 
@@ -92,6 +104,10 @@ Or browse all releases → **[github.com/Curun1r/Serpentis/releases](https://git
 | `Shift` | Dash |
 | `P` / `Esc` | Pause |
 | `F11` | Toggle fullscreen |
+
+In menus, use `Up` / `Down` or `Tab` to navigate and `Enter` to select. Settings use `Left` / `Right` to adjust the focused row. In the hangar, use `Left` / `Right` to choose a ship and `Enter` to launch. Open **How to Play** from the main menu for controls and pickup descriptions.
+
+On macOS, **AUTO** resolution is enabled by default. Fullscreen uses the current monitor's desktop resolution; windowed mode leaves room for the system menu bar and Dock. The game adapts when moved to another monitor and keeps its proportions. Choose a fixed resolution in Settings to disable Auto.
 
 ---
 
@@ -154,13 +170,15 @@ explosion.py         — explosion animation sprite
 ship.py              — ShipConfig definitions (Serpent / Viper / Hydra)
 ship_sprites.py      — procedural ship sprite builder
 ui_fx.py             — glass panels, damage numbers, glow effects
+ui_theme.py          — shared menu colors, buttons, focus, and leaderboard
+display_layout.py    — monitor detection, automatic sizing, proportional viewport
 score_manager.py     — top-5 leaderboard (JSON)
 settings_manager.py  — volume, resolution, difficulty, fullscreen (JSON)
 assets.py            — image / sound cache + procedural audio
 music.py             — procedural background music player
 background.py        — parallax star field
 config.py            — runtime constants (loaded from config.json)
-screens/             — start, ship select, game over, pause, settings
+screens/             — start, ship select, game over, pause, settings, controls
 tests/               — pytest suite for logic and headless gameplay regressions
 ```
 

@@ -27,6 +27,9 @@ from screens.ship_select import ShipSelectScreen
 from screens.game_over  import GameOverScreen
 from screens.settings   import SettingsScreen
 from screens.pause      import PauseOverlay
+from screens.controls   import ControlsScreen
+from display_layout import current_display_index, get_native_resolution, choose_window_size, fit_viewport
+from ui_theme import MUTED
 
 
 class GameState(Enum):
@@ -38,6 +41,7 @@ class GameState(Enum):
     DYING       = "dying"     # death animation before game over
     GAME_OVER   = "game_over"
     SETTINGS    = "settings"
+    CONTROLS    = "controls"
 
 
 # Fixed logical game-world resolution — all sprites and physics live in this space.
@@ -49,24 +53,14 @@ class Game:
     def __init__(self):
         pygame.display.set_caption(GAME_CAPTION)
 
-        s = Settings.get()
         self.screen_width  = _LOGICAL_W
         self.screen_height = _LOGICAL_H
         config.SCREEN_WIDTH  = _LOGICAL_W
         config.SCREEN_HEIGHT = _LOGICAL_H
 
-        # Physical display size (chosen by user in Settings)
-        self._disp_w, self._disp_h = s.resolution
-        # Scale factors: transform display-space mouse coords → logical (1280×720) coords
-        self._mouse_sx = _LOGICAL_W / self._disp_w
-        self._mouse_sy = _LOGICAL_H / self._disp_h
-        # Camera-shake offset — set by _draw(), consumed by run()
+        self._display_index = current_display_index()
+        self._open_display()
         self._shake_ox = self._shake_oy = 0
-
-        # pygame.SCALED prevents the OS compositor from applying blurry bilinear filtering
-        # (critical on macOS Retina / HiDPI displays).
-        _flags = (pygame.FULLSCREEN | pygame.SCALED) if s.fullscreen else pygame.SCALED
-        self.screen = pygame.display.set_mode((self._disp_w, self._disp_h), _flags)
 
         # ── Fonts ──────────────────────────────────────────────────────────
         fonts = {
@@ -131,6 +125,7 @@ class Game:
         self._gameover      = GameOverScreen(fonts)
         self._settings      = SettingsScreen(fonts)
         self._pause         = PauseOverlay(fonts)
+        self._controls      = ControlsScreen(fonts)
         self._update_screen_layouts()
 
         # ── Canvas & particles ────────────────────────────────────────────
@@ -170,15 +165,37 @@ class Game:
         if hasattr(self, '_music'):
             self._music.set_volume(vol * 0.5)
 
-    def _apply_resolution(self):
-        """Recreate the display at the resolution stored in Settings."""
+    def _open_display(self, display_index=None):
         s = Settings.get()
-        self._disp_w, self._disp_h = s.resolution
-        self._mouse_sx = _LOGICAL_W / self._disp_w
-        self._mouse_sy = _LOGICAL_H / self._disp_h
-        flags = (pygame.FULLSCREEN | pygame.SCALED) if s.fullscreen else pygame.SCALED
-        self.screen = pygame.display.set_mode((self._disp_w, self._disp_h), flags)
+        self._display_index = current_display_index() if display_index is None else display_index
+        self._display_index = max(0, min(self._display_index, pygame.display.get_num_displays() - 1))
+        self._native_mode = get_native_resolution(self._display_index)
+        if s.auto_resolution:
+            size = self._native_mode if s.fullscreen else choose_window_size(self._native_mode)
+        else:
+            size = s.resolution
+        flags = pygame.SCALED | (pygame.FULLSCREEN if s.fullscreen else 0)
+        self.screen = pygame.display.set_mode(size, flags, display=self._display_index)
+        self._disp_w, self._disp_h = self.screen.get_size()
+        self._viewport = fit_viewport((self._disp_w, self._disp_h))
+
+    def _apply_resolution(self, display_index=None):
+        """Recreate the window on its current monitor and preserve game proportions."""
+        self._open_display(display_index)
         self._update_screen_layouts()
+
+    def _present(self):
+        """Letterbox the logical canvas, including camera shake, inside the display."""
+        view = self._viewport
+        scaled = (self._canvas if view.size == self._canvas.get_size() else
+                  pygame.transform.smoothscale(self._canvas, view.size))
+        self.screen.fill((0, 0, 0))
+        previous_clip = self.screen.get_clip()
+        self.screen.set_clip(view)
+        self.screen.blit(scaled, (view.x + round(self._shake_ox * view.w / _LOGICAL_W),
+                                  view.y + round(self._shake_oy * view.h / _LOGICAL_H)))
+        self.screen.set_clip(previous_clip)
+        pygame.display.update()
 
     def _toggle_fullscreen(self):
         s = Settings.get()
@@ -198,7 +215,11 @@ class Game:
     # ------------------------------------------------------------------
 
     def _lpos(self, pos: tuple[int, int]) -> tuple[int, int]:
-        return (int(pos[0] * self._mouse_sx), int(pos[1] * self._mouse_sy))
+        view = self._viewport
+        if not view.collidepoint(pos):
+            return (-1, -1)
+        return (int((pos[0] - view.x) * _LOGICAL_W / view.w),
+                int((pos[1] - view.y) * _LOGICAL_H / view.h))
 
     def _lmouse(self) -> tuple[int, int]:
         return self._lpos(pygame.mouse.get_pos())
@@ -317,6 +338,8 @@ class Game:
                 self._gameover.draw(self._canvas, self)
             elif self.state == GameState.SETTINGS:
                 self._settings.draw(self._canvas, self)
+            elif self.state == GameState.CONTROLS:
+                self._controls.draw(self._canvas, self)
 
             # ── Fade overlay ──────────────────────────────────────────
             self._fade_alpha += self._fade_dir * self._fade_speed * dt
@@ -336,116 +359,107 @@ class Game:
                 fade_surf.set_alpha(int(self._fade_alpha))
                 self._canvas.blit(fade_surf, (0, 0))
 
-            # ── Scale to display ──────────────────────────────────────
-            if self._disp_w != _LOGICAL_W or self._disp_h != _LOGICAL_H:
-                scaled = pygame.transform.smoothscale(
-                    self._canvas, (self._disp_w, self._disp_h))
-            else:
-                scaled = self._canvas
-            self.screen.fill((0, 0, 0))
-            self.screen.blit(scaled, (self._shake_ox, self._shake_oy))
-
-            pygame.display.update()
+            self._present()
 
     # ------------------------------------------------------------------
     # Event handling
     # ------------------------------------------------------------------
 
+    def _handle_screen_action(self, action):
+        if not action or self._fade_next_state is not None:
+            return
+        if action == 'quit':
+            pygame.quit()
+            sys.exit()
+        if self.state == GameState.START:
+            target = {'play': GameState.SHIP_SELECT, 'settings': GameState.SETTINGS,
+                      'controls': GameState.CONTROLS}.get(action)
+            if target:
+                self._fade_to(target)
+        elif self.state == GameState.SHIP_SELECT:
+            if action == 'confirm': self._confirm_ship()
+            elif action == 'back': self._fade_to(GameState.START)
+        elif self.state == GameState.CONTROLS and action == 'back':
+            self._fade_to(GameState.START)
+        elif self.state == GameState.SETTINGS:
+            self._settings.handle_mouse_up(self)
+            if action == 'back': self._fade_to(GameState.START)
+            elif action == 'fullscreen': self._toggle_fullscreen()
+            elif action == 'resolution': self._apply_resolution()
+        elif self.state in (GameState.GAME_OVER, GameState.PAUSED):
+            self._pause.handle_mouse_up(self)
+            if action == 'resume':
+                self.state = GameState.PLAYING
+                self._music.resume()
+            elif action in ('retry', 'restart', 'menu'):
+                self._init_game()
+                if action == 'menu':
+                    self._music.play_menu()
+                    self._fade_to(GameState.START)
+                else:
+                    self._music.play_battle()
+                    self._music.resume()
+                    self._fade_to(GameState.PLAYING)
+
+    def _menu_screen(self):
+        return {GameState.START: self._start_screen, GameState.SHIP_SELECT: self._ship_screen,
+                GameState.SETTINGS: self._settings, GameState.CONTROLS: self._controls,
+                GameState.PAUSED: self._pause, GameState.GAME_OVER: self._gameover}.get(self.state)
+
     def _handle_event(self, event):
+        if event.type == pygame.WINDOWDISPLAYCHANGED:
+            index = getattr(event, 'display_index', current_display_index())
+            if Settings.get().auto_resolution and (
+                    index != self._display_index or get_native_resolution(index) != self._native_mode):
+                self._apply_resolution(index)
+            return
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_F11:
                 self._toggle_fullscreen()
-
-            if self.state == GameState.START:
-                if event.key == pygame.K_SPACE:
-                    self._fade_to(GameState.SHIP_SELECT)
-
-            elif self.state == GameState.SHIP_SELECT:
-                action = self._ship_screen.handle_key(event.key, self)
-                if action == 'confirm': self._confirm_ship()
-                elif action == 'back':  self._fade_to(GameState.START)
-
-            elif self.state == GameState.PLAYING:
-                if event.key in (pygame.K_LEFT,  pygame.K_a): self.fighter.move_left()
+                return
+            if self.state == GameState.PLAYING:
+                if event.key in (pygame.K_LEFT, pygame.K_a): self.fighter.move_left()
                 if event.key in (pygame.K_RIGHT, pygame.K_d): self.fighter.move_right()
-                if event.key in (pygame.K_UP,    pygame.K_w): self.fighter.move_up()
-                if event.key in (pygame.K_DOWN,  pygame.K_s): self.fighter.move_down()
-                if event.key == pygame.K_SPACE:                self._shoot()
+                if event.key in (pygame.K_UP, pygame.K_w): self.fighter.move_up()
+                if event.key in (pygame.K_DOWN, pygame.K_s): self.fighter.move_down()
+                if event.key == pygame.K_SPACE: self._shoot()
                 if event.key in (pygame.K_LSHIFT, pygame.K_RSHIFT):
                     if self.fighter.dash_cooldown_ratio == 0:
                         self._dash_channel.play(self._dash_snd_raw)
                     self.fighter.dash()
                 if event.key in (pygame.K_p, pygame.K_ESCAPE):
+                    self._pause.focus.select(1)
                     self.state = GameState.PAUSED
                     self._music.pause()
+            else:
+                screen = self._menu_screen()
+                if screen:
+                    self._handle_screen_action(screen.handle_key(event.key, self))
 
-            elif self.state == GameState.PAUSED:
-                if event.key in (pygame.K_p, pygame.K_ESCAPE):
-                    self.state = GameState.PLAYING
-                    self._music.resume()
+        if event.type == pygame.KEYUP and self.state in (GameState.PLAYING, GameState.PAUSED):
+            if event.key in (pygame.K_LEFT, pygame.K_a): self.fighter.is_moving_left = False
+            if event.key in (pygame.K_RIGHT, pygame.K_d): self.fighter.is_moving_right = False
+            if event.key in (pygame.K_UP, pygame.K_w): self.fighter.is_moving_up = False
+            if event.key in (pygame.K_DOWN, pygame.K_s): self.fighter.is_moving_down = False
 
-            elif self.state == GameState.SETTINGS:
-                if event.key == pygame.K_ESCAPE:
-                    self.state = GameState.START
-
-        if event.type == pygame.KEYUP:
-            if self.state in (GameState.PLAYING, GameState.PAUSED):
-                if event.key in (pygame.K_LEFT,  pygame.K_a): self.fighter.is_moving_left  = False
-                if event.key in (pygame.K_RIGHT, pygame.K_d): self.fighter.is_moving_right = False
-                if event.key in (pygame.K_UP,    pygame.K_w): self.fighter.is_moving_up    = False
-                if event.key in (pygame.K_DOWN,  pygame.K_s): self.fighter.is_moving_down  = False
-
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            lpos = self._lpos(event.pos)
-
-            if self.state == GameState.PLAYING and event.button == 1:
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            pos = self._lpos(event.pos)
+            if pos == (-1, -1):
+                return
+            if self.state == GameState.PLAYING:
                 self._shoot()
-
-            elif self.state == GameState.START:
-                action = self._start_screen.handle_click(lpos, self)
-                if   action == 'play':     self._fade_to(GameState.SHIP_SELECT)
-                elif action == 'settings': self._fade_to(GameState.SETTINGS)
-                elif action == 'quit':     pygame.quit(); sys.exit()
-
-            elif self.state == GameState.SHIP_SELECT:
-                action = self._ship_screen.handle_click(lpos, self)
-                if action == 'confirm': self._confirm_ship()
-
-            elif self.state == GameState.GAME_OVER:
-                action = self._gameover.handle_click(lpos, self)
-                if action == 'retry':
-                    self._init_game(); self._music.play_battle()
-                    self._fade_to(GameState.PLAYING)
-                elif action == 'menu':
-                    self._init_game(); self._music.play_menu()
-                    self._fade_to(GameState.START)
-
-            elif self.state == GameState.SETTINGS:
-                action = self._settings.handle_click(lpos, self)
-                if   action == 'back':       self._fade_to(GameState.START)
-                elif action == 'fullscreen': self._toggle_fullscreen()
-                elif action == 'resolution': self._apply_resolution()
-
-            elif self.state == GameState.PAUSED:
-                action = self._pause.handle_click(lpos, self)
-                if   action == 'resume':
-                    self.state = GameState.PLAYING
-                    self._music.resume()
-                elif action == 'restart':
-                    self._init_game(); self._music.resume()
-                    self._fade_to(GameState.PLAYING)
-                elif action == 'menu':
-                    self._init_game(); self._music.play_menu()
-                    self._fade_to(GameState.START)
-                elif action == 'quit':
-                    pygame.quit(); sys.exit()
+            else:
+                screen = self._menu_screen()
+                if screen:
+                    self._handle_screen_action(screen.handle_click(pos, self))
 
         if event.type == pygame.MOUSEMOTION:
-            lpos = self._lpos(event.pos)
-            if   self.state == GameState.SETTINGS: self._settings.handle_motion(lpos, self)
-            elif self.state == GameState.PAUSED:   self._pause.handle_motion(lpos, self)
+            pos = self._lpos(event.pos)
+            if pos != (-1, -1):
+                if self.state == GameState.SETTINGS: self._settings.handle_motion(pos, self)
+                elif self.state == GameState.PAUSED: self._pause.handle_motion(pos, self)
 
-        if event.type == pygame.MOUSEBUTTONUP:
+        if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
             self._settings.handle_mouse_up(self)
             self._pause.handle_mouse_up(self)
 
@@ -995,7 +1009,7 @@ class Game:
 
         # Best score
         bs = render_shadowed(self.small_font,
-                             f"Best {self.best_score}", (100, 100, 140))
+                             f"Best {self.best_score}", MUTED)
         surface.blit(bs, (panel_w - bs.get_width() - 10, 40))
 
         # Hearts — right-aligned inside panel
@@ -1019,7 +1033,7 @@ class Game:
                          (bar_x, bar_y, bar_w, bar_h), 1, border_radius=3)
         dash_label = render_shadowed(self.small_font,
                                      "DASH  READY" if ready else "DASH",
-                                     (0, 220, 255) if ready else (80, 100, 110))
+                                     (0, 220, 255) if ready else MUTED)
         surface.blit(dash_label, (bar_x + bar_w + 8, bar_y - 4))
 
     def _draw_boss_hp_bar(self, surface: pygame.Surface):
@@ -1184,5 +1198,5 @@ class Game:
         # Version tag
         ver = render_shadowed(self.small_font,
                               f"{APP_NAME} v{APP_VERSION}   |   Developer: Yehor Petrenko",
-                              (50, 45, 70))
+                              MUTED)
         cv.blit(ver, ver.get_rect(centerx=cx, bottom=_LOGICAL_H - 14))

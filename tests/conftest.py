@@ -30,6 +30,7 @@ def gameplay(pygame_context, tmp_path, monkeypatch):
     monkeypatch.setattr(score_manager, 'SCORES_FILE', str(tmp_path / 'scores.json'))
     monkeypatch.setattr(settings_manager.Settings, '_instance', None)
     settings_manager.Settings.get().resolution_index = 1
+    settings_manager.Settings.get().auto_resolution = False
     # Reuse a headless surface: SDL's dummy driver cannot recreate SCALED renderers.
     monkeypatch.setattr(pygame.display, 'set_mode', lambda *args, **kwargs: pygame_context)
     # Music synthesis is unrelated to gameplay; avoid starting background threads.

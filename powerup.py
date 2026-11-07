@@ -32,8 +32,15 @@ def _build_orb(color: tuple, label: str) -> pygame.Surface:
     pygame.draw.circle(surf, (255, 255, 255, 190), (cx, cy), r - 3, 2)
 
     # Label
-    lbl = _label_font().render(label, True, (10, 10, 10))
-    surf.blit(lbl, lbl.get_rect(center=(cx, cy + 1)))
+    if label == HeartPowerUp.LABEL:
+        # Draw the heart directly; the default pygame font lacks this glyph.
+        ink = (10, 10, 10)
+        pygame.draw.circle(surf, ink, (cx - 3, cy - 2), 4)
+        pygame.draw.circle(surf, ink, (cx + 3, cy - 2), 4)
+        pygame.draw.polygon(surf, ink, [(cx - 7, cy - 1), (cx + 7, cy - 1), (cx, cy + 7)])
+    else:
+        lbl = _label_font().render(label, True, (10, 10, 10))
+        surf.blit(lbl, lbl.get_rect(center=(cx, cy + 1)))
     return surf
 
 

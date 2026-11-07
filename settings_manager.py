@@ -1,6 +1,8 @@
 import json
 import os
+import sys
 
+from display_layout import get_native_resolution
 from paths import user_data_dir
 
 SETTINGS_FILE = os.path.join(user_data_dir(), 'settings.json')
@@ -27,6 +29,7 @@ class Settings:
     def __init__(self):
         self.volume: float = 0.3
         self.resolution_index: int = 2   # index into RESOLUTIONS  (default: 1920×1080)
+        self.auto_resolution: bool = sys.platform == 'darwin'
         self.fps_index: int = 1          # index into FRAMERATES   (default: 60 fps)
         self.difficulty: str = 'normal'
         self.fullscreen: bool = False
@@ -48,6 +51,7 @@ class Settings:
             self.volume = max(0.0, min(1.0, float(data.get('volume', 0.3))))
             ri = int(data.get('resolution_index', 0))
             self.resolution_index = ri if 0 <= ri < len(RESOLUTIONS) else 0
+            self.auto_resolution = bool(data.get('auto_resolution', self.auto_resolution))
             d = data.get('difficulty', 'normal')
             self.difficulty = d if d in DIFFICULTY_CONFIG else 'normal'
             self.fullscreen = bool(data.get('fullscreen', False))
@@ -63,6 +67,7 @@ class Settings:
             json.dump({
                 'volume': round(self.volume, 3),
                 'resolution_index': self.resolution_index,
+                'auto_resolution': self.auto_resolution,
                 'fps_index': self.fps_index,
                 'difficulty': self.difficulty,
                 'fullscreen': self.fullscreen,
@@ -70,7 +75,13 @@ class Settings:
 
     @property
     def resolution(self) -> tuple[int, int]:
+        if self.auto_resolution:
+            return self.native_resolution
         return RESOLUTIONS[self.resolution_index]
+
+    @property
+    def native_resolution(self) -> tuple[int, int]:
+        return get_native_resolution()
 
     @property
     def fps(self) -> int:
