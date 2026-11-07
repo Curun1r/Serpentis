@@ -4,7 +4,7 @@ import config
 import random
 import math
 from enum import Enum
-from app_info import APP_NAME, APP_VERSION, APP_TAGLINE
+from app_info import APP_NAME, APP_VERSION, APP_TAGLINE, DEVELOPER_NAME
 from fighter import Fighter
 from alien import Alien, ArmoredAlien, ZigzagAlien, ShooterAlien
 from alien_bullet import AlienBullet
@@ -944,9 +944,10 @@ class Game:
             return
         ship  = self._selected_ship
         r, g, b = ship.color
-        # Follow Viper's paired nozzles instead of emitting from the centre keel.
-        nozzles = (-round(f.width * 10 / 46), round(f.width * 10 / 46)) if ship.id == 'viper' else (0,)
-        jitter = 1 if ship.id == 'viper' else 4
+        # Match the paired engine pods of each ship, in sprite-relative coordinates.
+        spread = round(f.width * {'serpent': 10 / 52, 'viper': 10 / 46, 'hydra': 19 / 68}[ship.id])
+        nozzles = (-spread, spread)
+        jitter = 1
         cy = f.rect.bottom - 4
         for offset in nozzles:
             for _ in range(2 if f.is_dashing else 1):
@@ -1206,6 +1207,6 @@ class Game:
 
         # Version tag
         ver = render_shadowed(self.small_font,
-                              f"{APP_NAME} v{APP_VERSION}   |   Developer: Yehor Petrenko",
+                              f"{APP_NAME} v{APP_VERSION}   |   Developer: {DEVELOPER_NAME}",
                               MUTED)
         cv.blit(ver, ver.get_rect(centerx=cx, bottom=_LOGICAL_H - 14))

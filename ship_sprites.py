@@ -1,8 +1,8 @@
 """Procedural ship sprite builder — high-detail versions.
 
-  serpent — balanced fighter    (blue,  symmetric, twin engines, central cannon)
+  serpent — balanced fighter    (cobalt interceptor, swept wings, twin engines)
   viper   — speed & agility     (emerald interceptor, swept wings, twin thrusters)
-  hydra   — heavy firepower     (orange, wide armoured hull, triple cannon array)
+  hydra   — heavy firepower     (amber gunship, layered armour, weapon pods)
 
 All sprites face UP (nose at top).
 """
@@ -13,66 +13,60 @@ import pygame
 # Serpent — balanced blue fighter  (52×68)
 # ---------------------------------------------------------------------------
 def _build_serpent() -> pygame.Surface:
+    # Original canvas and gameplay footprint; only the drawn hull changes.
     W, H = 52, 68
     surf = pygame.Surface((W, H), pygame.SRCALPHA)
     cx = W // 2
+    edge, light, seam = (76, 173, 227), (168, 232, 255), (10, 31, 54)
 
-    # ── Main fuselage ────────────────────────────────────────────────
-    body = [
-        (cx,      2),           # nose tip
-        (cx + 9,  14),
-        (cx + 13, 34),
-        (cx + 10, 54),
-        (cx,      60),
-        (cx - 10, 54),
-        (cx - 13, 34),
-        (cx - 9,  14),
-    ]
-    pygame.draw.polygon(surf, (14, 45, 80), body)
-    pygame.draw.polygon(surf, (80, 200, 255), body, 2)
-
-    # Fuselage centre ridge
-    pygame.draw.line(surf, (50, 130, 200), (cx, 4), (cx, 56), 2)
-
-    # ── Swept wings ───────────────────────────────────────────────────
+    # Broad swept wings and pale leading edges define the balanced fighter.
     for sign in (-1, 1):
-        wing = [
-            (cx + sign * 10, 28),
-            (cx + sign * 26, 48),
-            (cx + sign * 20, 56),
-            (cx + sign * 8,  44),
-        ]
-        pygame.draw.polygon(surf, (10, 35, 68), wing)
-        pygame.draw.polygon(surf, (60, 160, 230), wing, 1)
-        # Wing trailing edge detail
-        pygame.draw.line(surf, (40, 110, 180),
-                         (cx + sign * 12, 32), (cx + sign * 22, 50), 1)
+        def point(x, y):
+            return cx + sign * x, y
 
-    # ── Cockpit ───────────────────────────────────────────────────────
-    pygame.draw.ellipse(surf, (0, 25, 60),      (cx - 7, 8,  14, 18))
-    pygame.draw.ellipse(surf, (90, 200, 255),   (cx - 6, 9,  12, 16))
-    pygame.draw.ellipse(surf, (180, 235, 255),  (cx - 4, 10,  8, 10))
-    # Cockpit highlight
-    pygame.draw.ellipse(surf, (230, 248, 255),  (cx - 3, 11,  4,  5))
+        wing = [point(7, 22), point(24, 36), point(24, 46),
+                point(18, 44), point(12, 56), point(6, 48)]
+        pygame.draw.polygon(surf, (24, 61, 100), wing)
+        pygame.draw.polygon(surf, edge, wing, 1)
+        pygame.draw.polygon(surf, (43, 104, 151),
+                            [point(8, 25), point(21, 37), point(15, 40), point(9, 47)])
+        pygame.draw.line(surf, light, point(9, 26), point(22, 37), 1)
+        pygame.draw.line(surf, seam, point(10, 38), point(19, 43), 2)
+        pygame.draw.line(surf, (120, 219, 255), point(24, 38), point(24, 42), 2)
 
-    # ── Nose cannon ───────────────────────────────────────────────────
-    pygame.draw.rect(surf, (40, 110, 180), (cx - 3, 0, 6, 10), border_radius=2)
-    pygame.draw.circle(surf, (130, 220, 255), (cx, 1), 3)
+        # Armoured engine shoulders flank the narrow tail.
+        pod = [point(7, 43), point(14, 46), point(15, 57),
+               point(12, 63), point(7, 63), point(5, 55)]
+        pygame.draw.polygon(surf, seam, pod)
+        pygame.draw.polygon(surf, (54, 113, 158), pod, 1)
+        pygame.draw.line(surf, (101, 172, 214), point(10, 47), point(11, 55), 2)
+        ex = cx + sign * 10
+        pygame.draw.rect(surf, (27, 68, 108), (ex - 4, 57, 8, 7), border_radius=2)
+        pygame.draw.rect(surf, (84, 195, 255), (ex - 3, 61, 6, 4), border_radius=2)
+        pygame.draw.rect(surf, (207, 246, 255), (ex - 1, 62, 2, 3))
 
-    # ── Armour plates on fuselage ─────────────────────────────────────
-    for py in (20, 30, 40):
-        pygame.draw.line(surf, (30, 85, 145),
-                         (cx - 9 + (py - 20) // 2, py),
-                         (cx + 9 - (py - 20) // 2, py), 1)
+    body = [(cx, 2), (cx + 7, 13), (cx + 10, 29), (cx + 8, 46),
+            (cx + 4, 57), (cx - 4, 57), (cx - 8, 46), (cx - 10, 29), (cx - 7, 13)]
+    pygame.draw.polygon(surf, (29, 74, 116), body)
+    pygame.draw.polygon(surf, edge, body, 1)
+    pygame.draw.polygon(surf, (58, 122, 168),
+                        [(cx, 5), (cx, 51), (cx - 5, 46), (cx - 7, 28), (cx - 4, 14)])
+    pygame.draw.line(surf, light, (cx, 4), (cx, 12), 1)
+    pygame.draw.line(surf, (113, 197, 238), (cx, 35), (cx, 51), 1)
 
-    # ── Twin engine nozzles ───────────────────────────────────────────
-    for ex in (cx - 8, cx + 8):
-        pygame.draw.rect(surf, (25, 65, 120), (ex - 5, 54, 10, 12), border_radius=3)
-        pygame.draw.rect(surf, (60, 150, 220), (ex - 5, 54, 10, 12), 1, border_radius=3)
-        # Engine glow ring
-        pygame.draw.ellipse(surf, (70, 170, 255), (ex - 5, 62, 10, 8))
-        pygame.draw.ellipse(surf, (180, 225, 255),(ex - 3, 63,  6, 5))
-
+    # A hexagonal canopy replaces the old flat glowing oval.
+    canopy = [(cx, 13), (cx + 6, 20), (cx + 5, 28),
+              (cx, 32), (cx - 5, 28), (cx - 6, 20)]
+    pygame.draw.polygon(surf, seam, canopy)
+    pygame.draw.polygon(surf, (94, 191, 227),
+                        [(cx, 15), (cx + 4, 20), (cx + 3, 27), (cx, 29), (cx - 3, 27), (cx - 4, 20)])
+    pygame.draw.polygon(surf, (207, 247, 255),
+                        [(cx, 16), (cx + 2, 20), (cx, 26), (cx - 2, 23), (cx - 2, 20)])
+    for sign in (-1, 1):
+        for y in (36, 40, 44):
+            pygame.draw.line(surf, seam, (cx + sign * 4, y), (cx + sign * 7, y + 1), 1)
+    pygame.draw.polygon(surf, (16, 44, 73), [(cx - 3, 50), (cx + 3, 50), (cx + 2, 60), (cx - 2, 60)])
+    pygame.draw.line(surf, edge, (cx, 52), (cx, 60), 1)
     return surf
 
 
@@ -150,71 +144,73 @@ def _build_hydra() -> pygame.Surface:
     W, H = 68, 60
     surf = pygame.Surface((W, H), pygame.SRCALPHA)
     cx = W // 2
+    edge, light, seam = (221, 128, 57), (255, 217, 151), (49, 28, 23)
 
-    # ── Wide armoured hull ────────────────────────────────────────────
-    hull = [
-        (cx,      3),           # nose
-        (cx + 10, 12),
-        (cx + 26, 18),
-        (cx + 28, 42),
-        (cx + 16, 52),
-        (cx,      55),
-        (cx - 16, 52),
-        (cx - 28, 42),
-        (cx - 26, 18),
-        (cx - 10, 12),
-    ]
-    pygame.draw.polygon(surf, (82, 28, 6), hull)
-    pygame.draw.polygon(surf, (255, 120, 50), hull, 2)
-
-    # Armour plating bands
-    for py, w in ((20, 40), (30, 46), (40, 40)):
-        pygame.draw.line(surf, (150, 55, 15),
-                         (cx - w // 2, py), (cx + w // 2, py), 1)
-        # Rivet dots
-        for rx in (-w // 2, 0, w // 2):
-            pygame.draw.circle(surf, (180, 70, 20), (cx + rx, py), 1)
-
-    # ── Short stubby wings with weapon pods ───────────────────────────
+    # A wide chassis connects two substantial weapon and engine outriggers.
+    chassis = [(cx - 14, 18), (cx + 14, 18), (cx + 30, 29),
+               (cx + 28, 44), (cx + 16, 53), (cx - 16, 53), (cx - 28, 44), (cx - 30, 29)]
+    pygame.draw.polygon(surf, (78, 44, 30), chassis)
+    pygame.draw.polygon(surf, (149, 86, 43), chassis, 1)
     for sign in (-1, 1):
-        wing = [
-            (cx + sign * 24, 20),
-            (cx + sign * 34, 36),
-            (cx + sign * 28, 46),
-            (cx + sign * 16, 34),
-        ]
-        pygame.draw.polygon(surf, (65, 20, 4), wing)
-        pygame.draw.polygon(surf, (215, 88, 28), wing, 1)
-        # Wing cannon pod
-        pod_x = cx + sign * 32
-        pod_y = 30
-        pygame.draw.rect(surf, (48, 14, 3),
-                         (pod_x - 4, pod_y - 6, 8, 14), border_radius=2)
-        pygame.draw.rect(surf, (200, 80, 20),
-                         (pod_x - 4, pod_y - 6, 8, 14), 1, border_radius=2)
-        pygame.draw.circle(surf, (255, 85, 5), (pod_x, pod_y - 6), 4)
-        pygame.draw.circle(surf, (255, 195, 80),(pod_x, pod_y - 6), 2)
+        def point(x, y):
+            return cx + sign * x, y
 
-    # ── Wide cockpit (battle visor) ───────────────────────────────────
-    pygame.draw.ellipse(surf, (55, 16, 3),      (cx - 10, 14, 20, 12))
-    pygame.draw.ellipse(surf, (255, 125, 55),   (cx - 9,  15, 18, 10))
-    pygame.draw.ellipse(surf, (255, 215, 170),  (cx - 6,  16, 12,  7))
-    pygame.draw.ellipse(surf, (255, 240, 210),  (cx - 3,  17,  6,  4))
+        shoulder = [point(15, 15), point(25, 17), point(32, 29),
+                    point(30, 43), point(22, 48), point(13, 39)]
+        pygame.draw.polygon(surf, (113, 61, 32), shoulder)
+        pygame.draw.polygon(surf, edge, shoulder, 1)
+        pygame.draw.polygon(surf, (170, 96, 43),
+                            [point(17, 18), point(23, 20), point(29, 29), point(20, 32), point(15, 27)])
+        pygame.draw.line(surf, light, point(18, 18), point(25, 22), 1)
+        pygame.draw.line(surf, seam, point(18, 33), point(28, 35), 2)
+        pygame.draw.line(surf, (255, 161, 80), point(31, 30), point(30, 37), 2)
 
-    # ── Triple cannon array ───────────────────────────────────────────
-    for bx, blen in ((cx, 14), (cx - 12, 10), (cx + 12, 10)):
-        pygame.draw.rect(surf, (105, 35, 5), (bx - 3, 0, 6, blen), border_radius=1)
-        pygame.draw.rect(surf, (200, 75, 20), (bx - 3, 0, 6, blen), 1, border_radius=1)
-        pygame.draw.circle(surf, (255, 95, 15), (bx, 1), 3)
-        pygame.draw.circle(surf, (255, 195, 80),(bx, 1), 1)
+        # Forward-facing gun pods reinforce Hydra's heavy-firepower identity.
+        gx = cx + sign * 23
+        pygame.draw.rect(surf, seam, (gx - 4, 8, 8, 22), border_radius=2)
+        pygame.draw.rect(surf, (187, 110, 55), (gx - 3, 9, 6, 19), 1, border_radius=1)
+        pygame.draw.rect(surf, (239, 174, 96), (gx - 1, 8, 2, 15))
+        pygame.draw.rect(surf, (255, 224, 165), (gx - 2, 8, 4, 3))
+        pygame.draw.rect(surf, (63, 38, 28), (gx - 4, 24, 8, 7), border_radius=2)
 
-    # ── Twin wide engine nozzles ──────────────────────────────────────
-    for ex in (cx - 13, cx + 13):
-        pygame.draw.rect(surf, (95, 32, 5), (ex - 7, 50, 14, 10), border_radius=3)
-        pygame.draw.rect(surf, (210, 90, 25),(ex - 7, 50, 14, 10), 1, border_radius=3)
-        pygame.draw.ellipse(surf, (255, 135, 40),  (ex - 6, 56, 12,  7))
-        pygame.draw.ellipse(surf, (255, 225, 140), (ex - 3, 57,  6,  5))
+        # The broad exhausts are recessed into separate armoured engine pods.
+        ex = cx + sign * 19
+        pod = [point(14, 39), point(25, 41), point(26, 51),
+               point(23, 57), point(15, 57), point(12, 49)]
+        pygame.draw.polygon(surf, seam, pod)
+        pygame.draw.polygon(surf, (157, 91, 47), pod, 1)
+        for y in (44, 47):
+            pygame.draw.line(surf, (108, 66, 39), (ex - 3, y), (ex + 3, y), 1)
+        pygame.draw.rect(surf, (123, 66, 34), (ex - 5, 50, 10, 7), border_radius=2)
+        pygame.draw.rect(surf, (255, 155, 66), (ex - 4, 54, 8, 4), border_radius=2)
+        pygame.draw.rect(surf, (255, 235, 181), (ex - 2, 55, 4, 3))
 
+    # Raised central citadel, layered rather than the old round outline.
+    hull = [(cx, 5), (cx + 11, 13), (cx + 15, 28), (cx + 12, 44),
+            (cx + 6, 52), (cx - 6, 52), (cx - 12, 44), (cx - 15, 28), (cx - 11, 13)]
+    pygame.draw.polygon(surf, (132, 72, 34), hull)
+    pygame.draw.polygon(surf, edge, hull, 1)
+    pygame.draw.polygon(surf, (185, 108, 49),
+                        [(cx, 7), (cx, 45), (cx - 8, 40), (cx - 12, 28), (cx - 8, 15)])
+    pygame.draw.line(surf, light, (cx, 7), (cx, 13), 1)
+    pygame.draw.line(surf, (230, 153, 78), (cx, 31), (cx, 45), 1)
+
+    # Wide angular battle visor, set behind the centre cannon.
+    visor = [(cx - 8, 17), (cx + 8, 17), (cx + 10, 24),
+             (cx + 5, 29), (cx - 5, 29), (cx - 10, 24)]
+    pygame.draw.polygon(surf, seam, visor)
+    pygame.draw.polygon(surf, (255, 183, 91),
+                        [(cx - 6, 19), (cx + 6, 19), (cx + 7, 23), (cx + 3, 26), (cx - 3, 26), (cx - 7, 23)])
+    pygame.draw.polygon(surf, (255, 240, 199),
+                        [(cx - 4, 19), (cx + 4, 19), (cx + 2, 23), (cx - 3, 23)])
+    pygame.draw.rect(surf, seam, (cx - 3, 1, 6, 14), border_radius=1)
+    pygame.draw.rect(surf, (242, 171, 91), (cx - 1, 2, 2, 10))
+    pygame.draw.rect(surf, light, (cx - 2, 1, 4, 3))
+    for sign in (-1, 1):
+        for y in (33, 37, 41):
+            pygame.draw.line(surf, seam, (cx + sign * 5, y), (cx + sign * 9, y + 1), 1)
+    pygame.draw.polygon(surf, (81, 45, 29), [(cx - 5, 45), (cx + 5, 45), (cx + 3, 53), (cx - 3, 53)])
+    pygame.draw.line(surf, edge, (cx, 47), (cx, 52), 1)
     return surf
 
 

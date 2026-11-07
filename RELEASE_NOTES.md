@@ -1,39 +1,23 @@
-# Serpentis 1.8.0
+# Serpentis 1.8.1
 
-A refreshed fleet, cohesive menus, automatic Mac display sizing, and more reliable gameplay.
+The fleet refresh is complete: Serpent and Hydra join the redesigned Viper with new detailed ship artwork.
 
-## New Viper design
+## Updated ship models
 
-- Redesigned the green Viper as an emerald interceptor with swept wings, a brighter canopy, layered armour, and twin engine nozzles.
-- Added matching paired exhaust trails in flight and updated the hangar and fleet previews.
-- Kept Viper's speed, weapons, dash timing, and collision dimensions unchanged.
+- **Serpent:** a faceted cobalt hull, broader swept wings, an angular cyan canopy, layered armour and twin engine pods.
+- **Hydra:** a wide amber gunship with reinforced armour, forward weapon pods, a central cannon and recessed twin exhausts.
+- Matched the flight trails to the engine positions of all three ships.
+- Refreshed menu, hangar and gameplay screenshots.
 
-## Interface
+## Credits
 
-- Unified the main menu, hangar, settings, pause, and results with readable panels and shared button styles.
-- Added keyboard navigation, visible focus, an explicit launch button, and an in-game How to Play guide.
-- Improved text contrast and replaced unsupported symbols with reliable artwork.
-- Updated screenshots and controls documentation.
+- The launch screen now credits **Curunir** as the developer.
+- Centralized the displayed developer name alongside the application identity and version.
 
-## Display and macOS
-
-- Enabled Auto resolution by default on macOS, following the current monitor's desktop mode and system scaling.
-- Windowed Auto leaves room for system panels; fullscreen uses the monitor's desktop resolution.
-- Preserved game proportions on Mac, 4:3 and ultrawide displays, with matching mouse coordinates.
-- Fixed the native crash when opening Settings by removing unsafe temporary SDL window wrappers.
-
-## Gameplay fixes
-
-- Movement keys released while paused no longer leave the ship moving after resume.
-- Fatal collisions stop further damage and record one result per run.
-- Pickups survive wave transitions, including hearts dropped by bosses.
-- Shield rams correctly defeat bosses and award their rewards.
-- Dash cooldown and distance are consistent across frame rates; movement stays inside the screen.
+Ship speed, weapons, dash timing and collision dimensions are unchanged. Viper's 1.8.0 design is preserved, and existing scores and settings remain compatible.
 
 ## Downloads
 
 - **Windows:** `Serpentis-Windows.exe`
 - **macOS:** `Serpentis-macOS.zip` — extract and open `Serpentis.app`.
 - **Linux:** `Serpentis-Linux.tar.gz` — extract, then run `chmod +x Serpentis && ./Serpentis`.
-
-Existing Serpentis scores and preferences are preserved. Manual display resolution remains available in Settings.
