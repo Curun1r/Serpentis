@@ -98,23 +98,27 @@ class Fighter(Sprite):
 
         if self._dash_timer > 0:
             # Dash overrides normal movement — fly in the locked direction
-            self._dash_timer -= dt
+            dash_dt = min(dt, self._dash_timer)
+            self._dash_timer = max(0.0, self._dash_timer - dash_dt)
             dash_speed = self.speed * DASH_MULTIPLIER
-            self.x = max(0.0, min(float(sw - self.width),  self.x + self._dash_vx * dash_speed * dt))
-            self.y = max(0.0, min(float(sh - self.height), self.y + self._dash_vy * dash_speed * dt))
-        else:
+            self.x += self._dash_vx * dash_speed * dash_dt
+            self.y += self._dash_vy * dash_speed * dash_dt
+            self.x = max(0.0, min(float(sw - self.width), self.x))
+            self.y = max(0.0, min(float(sh - self.height), self.y))
+            dt -= dash_dt
+
+        # Use any time left after the dash for normal movement and recharge.
+        if dt > 0:
             if self._dash_cooldown > 0:
-                self._dash_cooldown -= dt
+                self._dash_cooldown = max(0.0, self._dash_cooldown - dt)
 
             # Normal movement within screen bounds
-            if self.is_moving_left  and self.x > 0:
-                self.x -= self.speed * dt
-            if self.is_moving_right and self.x < sw - self.width:
-                self.x += self.speed * dt
-            if self.is_moving_up    and self.y > 0:
-                self.y -= self.speed * dt
-            if self.is_moving_down  and self.y < sh - self.height:
-                self.y += self.speed * dt
+            vx = int(self.is_moving_right) - int(self.is_moving_left)
+            vy = int(self.is_moving_down) - int(self.is_moving_up)
+            self.x += vx * self.speed * dt
+            self.y += vy * self.speed * dt
+            self.x = max(0.0, min(float(sw - self.width), self.x))
+            self.y = max(0.0, min(float(sh - self.height), self.y))
 
         # Sync float position to rect for collision and rendering
         self.rect.x = int(self.x)

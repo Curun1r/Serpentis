@@ -237,7 +237,7 @@ class Game:
     def _start_wave(self, wave_num: int, extra_delay: float = 0.0):
         self.wave               = wave_num
         self.alien_bullets      = pygame.sprite.Group()
-        self.powerups           = pygame.sprite.Group()
+        # Pickups remain collectible between waves; _init_game clears them on restart.
         self._wave_banner_timer = 2.8 + extra_delay
         self.mini_boss          = None
 
@@ -389,7 +389,7 @@ class Game:
                     self.state = GameState.START
 
         if event.type == pygame.KEYUP:
-            if self.state == GameState.PLAYING:
+            if self.state in (GameState.PLAYING, GameState.PAUSED):
                 if event.key in (pygame.K_LEFT,  pygame.K_a): self.fighter.is_moving_left  = False
                 if event.key in (pygame.K_RIGHT, pygame.K_d): self.fighter.is_moving_right = False
                 if event.key in (pygame.K_UP,    pygame.K_w): self.fighter.is_moving_up    = False
@@ -500,6 +500,8 @@ class Game:
     # ------------------------------------------------------------------
 
     def _update(self, dt):
+        if self.state != GameState.PLAYING:
+            return
         if self._wave_banner_timer > 0: self._wave_banner_timer -= dt
         if self._triple_shot_timer > 0: self._triple_shot_timer -= dt
         if self._slow_time_timer   > 0: self._slow_time_timer   -= dt
@@ -530,8 +532,10 @@ class Game:
         DamageNumber.update_all(self._damage_numbers, dt)
 
         self._update_boss(dt)
+        if self.state != GameState.PLAYING:
+            return
         self._update_mini_boss(dt)
-        if self.state == GameState.GAME_OVER:
+        if self.state != GameState.PLAYING:
             return
 
         for ball in list(self.balls):
@@ -590,7 +594,7 @@ class Game:
                     self._break_shield()
                 else:
                     self._take_damage()
-                if self.state == GameState.GAME_OVER:
+                if self.state != GameState.PLAYING:
                     return
 
         for alien in list(self.aliens):
@@ -605,7 +609,7 @@ class Game:
                                          count=10, colors=[(70, 150, 255), (180, 220, 255)])
                 else:
                     self._take_damage()
-                if self.state == GameState.GAME_OVER:
+                if self.state != GameState.PLAYING:
                     return
 
         if (self.boss is None and self.mini_boss is None
@@ -628,26 +632,7 @@ class Game:
                 ball.kill()
                 self._ball_queue_remove(ball)
                 if self.boss.take_hit():
-                    cx, cy = self.boss.rect.center
-                    for _ in range(7):
-                        ox = random.randint(-55, 55)
-                        oy = random.randint(-55, 55)
-                        self.explosions.add(Explosion(cx + ox, cy + oy))
-                    self._spawn_particles(cx, cy, count=40,
-                                         colors=[(255, 100, 255), (200, 50, 255),
-                                                 (255, 215,   0), (255,  80,  80)])
-                    self.game_score += self.boss.SCORE
-                    if self.game_score > self.best_score:
-                        self.best_score = self.game_score
-                        ScoreManager.save(self.best_score)
-                    self._spawn_damage_number(cx, cy, f"+{self.boss.SCORE}",
-                                              DamageNumber.COLOR_SCORE, scale=1.3,
-                                              lifetime=1.2)
-                    self.hit_sound.play()
-                    # Drop a heart at boss centre
-                    self.powerups.add(HeartPowerUp(cx, cy))
-                    self.boss = None
-                    self._start_wave(self.wave + 1, extra_delay=2.0)
+                    self._defeat_boss(self.boss)
                     return
                 else:
                     self._spawn_damage_number(ball.rect.centerx, ball.rect.centery,
@@ -660,7 +645,7 @@ class Game:
                 self._break_shield()
                 # Shield rams the boss — deal damage to it
                 if self.boss.take_hit(2):
-                    pass   # boss HP handled normally; death checked next frame
+                    self._defeat_boss(self.boss)
             else:
                 self._take_damage()
 
@@ -677,25 +662,7 @@ class Game:
                 ball.kill()
                 self._ball_queue_remove(ball)
                 if self.mini_boss.take_hit():
-                    cx, cy = self.mini_boss.rect.center
-                    for _ in range(4):
-                        ox = random.randint(-35, 35)
-                        oy = random.randint(-35, 35)
-                        self.explosions.add(Explosion(cx + ox, cy + oy))
-                    self._spawn_particles(cx, cy, count=25,
-                                         colors=[(0, 220, 170), (0, 180, 140),
-                                                 (255, 215, 0), (200, 255, 230)])
-                    self.game_score += self.mini_boss.SCORE
-                    if self.game_score > self.best_score:
-                        self.best_score = self.game_score
-                        ScoreManager.save(self.best_score)
-                    self._spawn_damage_number(cx, cy, f"+{self.mini_boss.SCORE}",
-                                              DamageNumber.COLOR_SCORE, scale=1.15,
-                                              lifetime=1.1)
-                    self.hit_sound.play()
-                    self.powerups.add(HeartPowerUp(cx, cy))   # always drops heart
-                    self.mini_boss = None
-                    self._start_wave(self.wave + 1, extra_delay=1.5)
+                    self._defeat_boss(self.mini_boss)
                     return
                 else:
                     self._spawn_damage_number(ball.rect.centerx, ball.rect.centery,
@@ -706,9 +673,38 @@ class Game:
         if self.mini_boss and self.mini_boss.rect.colliderect(self.fighter.rect):
             if self._shield_active:
                 self._break_shield()
-                self.mini_boss.take_hit(2)
+                if self.mini_boss.take_hit(2):
+                    self._defeat_boss(self.mini_boss)
             else:
                 self._take_damage()
+
+    def _defeat_boss(self, enemy: Boss | MiniBoss):
+        """Resolve a boss kill once, regardless of whether a bullet or shield hit it."""
+        if enemy is not self.boss and enemy is not self.mini_boss:
+            return
+        mini = enemy is self.mini_boss
+        cx, cy = enemy.rect.center
+        spread = 35 if mini else 55
+        for _ in range(4 if mini else 7):
+            ox = random.randint(-spread, spread)
+            oy = random.randint(-spread, spread)
+            self.explosions.add(Explosion(cx + ox, cy + oy))
+        colors = ([(0, 220, 170), (0, 180, 140), (255, 215, 0), (200, 255, 230)]
+                  if mini else [(255, 100, 255), (200, 50, 255), (255, 215, 0), (255, 80, 80)])
+        self._spawn_particles(cx, cy, count=25 if mini else 40, colors=colors)
+        self.game_score += enemy.SCORE
+        if self.game_score > self.best_score:
+            self.best_score = self.game_score
+            ScoreManager.save(self.best_score)
+        self._spawn_damage_number(cx, cy, f"+{enemy.SCORE}", DamageNumber.COLOR_SCORE,
+                                  scale=1.15 if mini else 1.3, lifetime=1.1 if mini else 1.2)
+        self.hit_sound.play()
+        self.powerups.add(HeartPowerUp(cx, cy))
+        if mini:
+            self.mini_boss = None
+        else:
+            self.boss = None
+        self._start_wave(self.wave + 1, extra_delay=1.5 if mini else 2.0)
 
     def _maybe_drop_powerup(self, cx: int, cy: int):
         if random.random() > 0.25:
@@ -731,6 +727,8 @@ class Game:
         self.powerup_sound.play()
 
     def _take_damage(self):
+        if self.state != GameState.PLAYING:
+            return
         if self._shield_active:
             self._break_shield()
             return
