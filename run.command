@@ -13,7 +13,7 @@ if command -v pipenv &>/dev/null; then
     pipenv run python main.py
 elif command -v python3 &>/dev/null; then
     echo "pipenv not found — running with system python3"
-    python3 -m pip install pygame --quiet
+    python3 -m pip install -r requirements.txt --quiet
     python3 main.py
 else
     echo ""

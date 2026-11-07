@@ -1,6 +1,8 @@
 import json
 import os
 
+from app_info import APP_NAME
+
 _CONFIG_FILE = 'config.json'
 
 
@@ -24,7 +26,7 @@ _cfg = _load()
 # --- Screen ---
 SCREEN_WIDTH: int   = _cfg.get('screen', {}).get('width',   1200)
 SCREEN_HEIGHT: int  = _cfg.get('screen', {}).get('height',  750)
-GAME_CAPTION: str   = _cfg.get('screen', {}).get('caption', 'Serpentis')
+GAME_CAPTION: str   = _cfg.get('screen', {}).get('caption', APP_NAME)
 
 # --- Speeds (pixels per second, used with delta time) ---
 FIGHTER_SPEED: float = _cfg.get('speeds', {}).get('fighter', 230)

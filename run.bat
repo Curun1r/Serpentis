@@ -10,7 +10,7 @@ if %errorlevel% == 0 (
     where python >nul 2>&1
     if %errorlevel% == 0 (
         echo pipenv not found -- running with system Python
-        python -m pip install pygame --quiet
+        python -m pip install -r requirements.txt --quiet
         python main.py
     ) else (
         echo.

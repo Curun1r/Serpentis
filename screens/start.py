@@ -2,6 +2,7 @@
 import sys
 import math
 import pygame
+from app_info import APP_NAME, APP_TAGLINE
 from ship import SHIPS
 from ui_fx import (draw_fancy_button, draw_glass_panel,
                    render_shadowed)
@@ -28,11 +29,11 @@ class StartScreen:
 
         # Pre-render title with outline (no bloom — avoids overexposure)
         from ui_fx import render_outlined
-        self._title_surf   = render_outlined(self.wave_font, "SERPENTIS",
+        self._title_surf   = render_outlined(self.wave_font, APP_NAME.upper(),
                                              (210, 160, 255), (60, 10, 100),
                                              thickness=2)
         self._sub_surf     = render_shadowed(self.small_font,
-                                             "A Python space shooter",
+                                             APP_TAGLINE,
                                              (110, 110, 140))
 
     def update_layout(self, sw: int, sh: int):

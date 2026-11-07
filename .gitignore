@@ -27,6 +27,7 @@ Desktop.ini
 dist/
 build/
 *.spec
+!packaging/serpentis-macos.spec
 
 # Player data (scores and settings are local to each machine)
 data/

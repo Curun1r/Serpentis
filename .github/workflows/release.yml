@@ -4,19 +4,35 @@ name: Build & Release
 # with PyInstaller, then attaches them to a GitHub Release.
 #
 # Trigger a release by tagging a commit and pushing the tag:
-#   git tag v1.7.1
-#   git push origin v1.7.1
+#   git tag serpentis_1.7.4
+#   git push origin serpentis_1.7.4
 #
 # You can also run it manually from the Actions tab (workflow_dispatch).
 
 on:
   push:
     tags:
-      - 'v*'
+      - 'serpentis_*'
   workflow_dispatch:
 
 jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate release
+        run: |
+          pip install -r requirements.txt
+          pip install ruff pytest
+          ruff check .
+          pytest -q
+          python -c "import os; from app_info import RELEASE_TAG; ref = os.environ['GITHUB_REF_NAME']; assert os.environ['GITHUB_REF_TYPE'] != 'tag' or ref == RELEASE_TAG, f'Tag {ref} does not match {RELEASE_TAG}'"
+
   build:
+    needs: validate
     strategy:
       fail-fast: false
       matrix:
@@ -47,23 +63,22 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller pillow
 
-      # macOS: --windowed produces a Serpentis.app bundle; zip it for distribution.
+      # macOS: build a versioned app bundle and preserve its symlinks in the ZIP.
       - name: Build (macOS)
         if: matrix.platform == 'macOS'
         shell: bash
         run: |
-          pyinstaller --onefile --windowed --name Serpentis \
-            --icon icon.icns --add-data "image:image" main.py
-          cd dist && zip -r "../${{ matrix.artifact }}" Serpentis.app
+          pyinstaller packaging/serpentis-macos.spec
+          cd dist && zip -r -y "../${{ matrix.artifact }}" Serpentis.app
 
-      # Windows needs a .ico — generate one from the existing iconset on the fly.
+      # Windows needs a .ico — convert the tracked Serpentis icon on the fly.
       - name: Build (Windows)
         if: matrix.platform == 'Windows'
         shell: bash
         run: |
-          python -c "from PIL import Image; Image.open('icon.iconset/icon_256x256.png').save('icon.ico')"
+          python -c "from PIL import Image; Image.open('serpentis.icns').save('serpentis.ico', sizes=[(16, 16), (32, 32), (48, 48), (256, 256)])"
           pyinstaller --onefile --windowed --name Serpentis \
-            --icon icon.ico --add-data "image;image" main.py
+            --icon serpentis.ico --add-data "image;image" main.py
           mv dist/Serpentis.exe "${{ matrix.artifact }}"
 
       # Linux: plain onefile binary, packed as tar.gz to keep the executable bit.
@@ -80,13 +95,17 @@ jobs:
         with:
           name: ${{ matrix.platform }}
           path: ${{ matrix.artifact }}
+          if-no-files-found: error
 
   release:
+    if: startsWith(github.ref, 'refs/tags/')
     needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
@@ -94,7 +113,10 @@ jobs:
 
       - uses: softprops/action-gh-release@v2
         with:
+          name: ${{ github.ref_name }}
           files: artifacts/*
-          generate_release_notes: true
+          body_path: RELEASE_NOTES.md
+          fail_on_unmatched_files: true
+          make_latest: 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

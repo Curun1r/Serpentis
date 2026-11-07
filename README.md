@@ -1,5 +1,7 @@
 # Serpentis
 
+**Current release:** [Serpentis 1.7.4](https://github.com/Curun1r/Serpentis/releases/tag/serpentis_1.7.4)
+
 A fast-paced 2-D space shooter built with Python and pygame.  
 Destroy waves of alien invaders, survive boss encounters, collect power-ups, and chase the high score.
 
@@ -11,11 +13,11 @@ Destroy waves of alien invaders, survive boss encounters, collect power-ups, and
 
 | Platform | Download |
 |----------|----------|
-| 🪟 Windows | [Serpentis-Windows.exe](https://github.com/SaruUa/Space-shooter/releases/latest/download/Serpentis-Windows.exe) |
-| 🍎 macOS | [Serpentis-macOS.zip](https://github.com/SaruUa/Space-shooter/releases/latest/download/Serpentis-macOS.zip) |
-| 🐧 Linux | [Serpentis-Linux.tar.gz](https://github.com/SaruUa/Space-shooter/releases/latest/download/Serpentis-Linux.tar.gz) |
+| 🪟 Windows | [Serpentis-Windows.exe](https://github.com/Curun1r/Serpentis/releases/latest/download/Serpentis-Windows.exe) |
+| 🍎 macOS | [Serpentis-macOS.zip](https://github.com/Curun1r/Serpentis/releases/latest/download/Serpentis-macOS.zip) |
+| 🐧 Linux | [Serpentis-Linux.tar.gz](https://github.com/Curun1r/Serpentis/releases/latest/download/Serpentis-Linux.tar.gz) |
 
-Or browse all releases → **[github.com/SaruUa/Space-shooter/releases](https://github.com/SaruUa/Space-shooter/releases)**
+Or browse all releases → **[github.com/Curun1r/Serpentis/releases](https://github.com/Curun1r/Serpentis/releases)**
 
 > **macOS note:** after unzipping, right-click `Serpentis.app` → Open (first launch only, to bypass Gatekeeper).  
 > **Linux note:** extract the archive, then `chmod +x Serpentis && ./Serpentis`.
@@ -98,8 +100,8 @@ Or browse all releases → **[github.com/SaruUa/Space-shooter/releases](https://
 **Requirements:** Python 3.10+ and pygame 2.5+
 
 ```bash
-git clone https://github.com/SaruUa/Space-shooter.git
-cd Space-shooter
+git clone https://github.com/Curun1r/Serpentis.git
+cd Serpentis
 ```
 
 **With pip:**
@@ -140,6 +142,7 @@ cp config.example.json config.json
 
 ```
 main.py              — entry point
+app_info.py          — shared application name, tagline, and release version
 game.py              — main loop, state machine, collision logic
 fighter.py           — player ship (movement, dash)
 alien.py             — Alien, ArmoredAlien, ZigzagAlien, ShooterAlien

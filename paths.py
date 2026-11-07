@@ -6,7 +6,7 @@ executable built with PyInstaller.
 import os
 import sys
 
-APP_NAME = 'Serpentis'
+from app_info import APP_NAME
 
 
 def user_data_dir() -> str:

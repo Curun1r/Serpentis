@@ -4,6 +4,7 @@ import config
 import random
 import math
 from enum import Enum
+from app_info import APP_NAME, APP_VERSION, APP_TAGLINE
 from fighter import Fighter
 from alien import Alien, ArmoredAlien, ZigzagAlien, ShooterAlien
 from alien_bullet import AlienBullet
@@ -1136,14 +1137,14 @@ class Game:
 
         # Title with outline — rendered fresh (cheap at 60fps for a 2.5s splash)
         glow_alpha = int(210 + 45 * math.sin(t * 2.5))
-        title = render_outlined(self.wave_font, "SERPENTIS",
+        title = render_outlined(self.wave_font, APP_NAME.upper(),
                                 (210, 160, 255), (60, 10, 100), thickness=2)
         title.set_alpha(glow_alpha)
         cv.blit(title, title.get_rect(centerx=cx, centery=cy - 70))
 
         # Subtitle
         sub = render_shadowed(self.game_font,
-                              "A Python space shooter",
+                              APP_TAGLINE,
                               (120, 110, 160), (0, 0, 0))
         cv.blit(sub, sub.get_rect(centerx=cx, centery=cy - 5))
 
@@ -1184,6 +1185,6 @@ class Game:
 
         # Version tag
         ver = render_shadowed(self.small_font,
-                              "Serpentis v1.7.0   |   Developer: Yehor Petrenko",
+                              f"{APP_NAME} v{APP_VERSION}   |   Developer: Yehor Petrenko",
                               (50, 45, 70))
         cv.blit(ver, ver.get_rect(centerx=cx, bottom=_LOGICAL_H - 14))
