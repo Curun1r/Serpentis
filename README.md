@@ -1,6 +1,6 @@
 # Serpentis
 
-**Current release:** [Serpentis 1.9.1](https://github.com/Curun1r/Serpentis/releases/tag/serpentis_1.9.1)
+**Current release:** [Serpentis 1.10.0](https://github.com/Curun1r/Serpentis/releases/tag/serpentis_1.10.0)
 
 A fast-paced 2-D space shooter built with Python and pygame.  
 Destroy waves of alien invaders, survive boss encounters, collect power-ups, and chase the high score.
@@ -36,7 +36,8 @@ See [Apple's opening instructions](https://support.apple.com/en-us/102445).
 
 ## Screenshots
 
-Gameplay and interface previews. Leaderboard examples use demonstration runs.
+Previews rendered from version 1.10.0 with the current sprite scales and 16:10 display mode.
+Gameplay scenes and leaderboard entries use demonstration runs.
 
 <table>
   <tr>
@@ -73,11 +74,11 @@ Gameplay and interface previews. Leaderboard examples use demonstration runs.
   </tr>
   <tr>
     <td><img src="screenshots/pause.png" alt="Pause Menu" width="400"/></td>
-    <td></td>
+    <td><img src="screenshots/mini_boss.png" alt="Warden Mini-boss" width="400"/></td>
   </tr>
   <tr>
     <td align="center"><em>Pause Menu</em></td>
-    <td></td>
+    <td align="center"><em>Warden Mini-boss</em></td>
   </tr>
 </table>
 
@@ -87,7 +88,7 @@ Gameplay and interface previews. Leaderboard examples use demonstration runs.
 
 - **Endless wave system** — waves get harder every round (+1 alien, +15% speed per wave)
 - **4 alien types** — Normal, Armoured (multi-hit), Zigzag, and Shooter aliens that fire back
-- **Mini-boss encounters** — a fast raider appears every wave 3, 8, 13 …
+- **3 mini-boss roles** — Raider dives at marked positions, Hunter tracks you before firing aimed bursts, and Warden patrols in an ellipse and fires fans with shifting escape lanes; cycle through waves 3, 8, 13 …
 - **Full boss fights** — every 5th wave; three visual tiers (Phantom → Ravager → Leviathan) each with unique multi-phase attack patterns
 - **3 playable ships** — each with unique procedurally-drawn sprites, stats, and dash timing; a cobalt Serpent interceptor, emerald Viper and armoured amber Hydra share a detailed fleet style with paired engine trails
 - **Dash mechanic** — short-range burst in any direction with a cooldown bar
@@ -254,7 +255,8 @@ hud.py               — score, lives, cooldowns and boss/power-up indicators
 effects.py           — particles, engine trails, floating labels and camera shake
 fighter.py           — player ship (movement, dash)
 alien.py             — Alien, ArmoredAlien, ZigzagAlien, ShooterAlien
-boss.py              — Boss and MiniBoss with phase-based attacks
+boss.py              — full bosses with phase-based attacks
+mini_boss.py         — Raider, Hunter and Warden movement, windups and attacks
 ball.py              — player bullet
 alien_bullet.py      — enemy bullet
 powerup.py           — TripleShot, Shield, SlowTime, Heart pick-ups

@@ -58,6 +58,7 @@ def _smoke_test(game):
         game._draw()
         game._present()
     rendered.append('gameplay')
+    mini_bosses = _smoke_mini_bosses(game)
     game.state = GameState.PAUSED
     game._advance_frame(0)
     rendered.append('pause')
@@ -73,7 +74,27 @@ def _smoke_test(game):
     rendered.append('leaderboard')
     return {'ok': True, 'application': APP_NAME, 'version': APP_VERSION,
             'screens': rendered, 'save_data': 'passed', 'sprite_sizes': sprite_sizes,
-            'render_size': list(game._canvas.get_size())}
+            'render_size': list(game._canvas.get_size()), 'mini_bosses': mini_bosses}
+
+
+def _smoke_mini_bosses(game):
+    """Exercise new models, attacks and HUD from each real packaged binary."""
+    from mini_boss import MiniBoss
+
+    names = []
+    for wave in (3, 8, 13):
+        enemy = game.mini_boss = MiniBoss(wave)
+        shots = []
+        for _ in range(60):
+            enemy.update(0.1, game.fighter.rect.center)
+            shots.extend(enemy.drain_shots())
+        if not shots or not all(vy > 0 for _, _, _, vy in shots):
+            raise RuntimeError(f'{enemy.name} did not complete its attack check')
+        game._draw()
+        game._present()
+        names.append(enemy.name)
+    game.mini_boss = None
+    return names
 
 
 def _run(smoke):

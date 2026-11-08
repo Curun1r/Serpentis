@@ -10,6 +10,7 @@ import pygame
 from app_info import APP_NAME, APP_TAGLINE, APP_VERSION, DEVELOPER_NAME
 from game_state import GameState
 from hud import draw_hud
+from mini_boss import MiniBoss
 from ui_fx import draw_glass_panel, render_outlined, render_shadowed
 from ui_theme import MUTED
 
@@ -30,6 +31,7 @@ def draw_world(game: Game) -> None:
     for group in (game.aliens, game.balls, game.alien_bullets, game.powerups, game.explosions):
         p.group(group)
     game._effects.draw_scaled(p)
+    _draw_mini_warning(p, game.mini_boss)
 
     if game._shield_active:
         radius = max(game.fighter.width, game.fighter.height) // 2 + 11
@@ -42,6 +44,22 @@ def draw_world(game: Game) -> None:
     if game.flash_timer > 0:
         p.tint((255, 0, 0, int(game.flash_timer * 4.5)))
     draw_hud(p, game)
+
+
+def _draw_mini_warning(p, enemy):
+    if enemy is None or enemy.attack_warning <= 0:
+        return
+    progress = enemy.attack_warning
+    p.circle(enemy.color, enemy.rect.center, enemy.width / 2 + 8 + 10 * (1 - progress), 2)
+    target = enemy.attack_target
+    if target is not None:
+        start = enemy.rect.center
+        dim = tuple(c // 2 for c in enemy.color)
+        for step in range(1, 10):
+            fraction = step / 10
+            point = tuple(a + (b - a) * fraction for a, b in zip(start, target))
+            p.circle(dim, point, 1.5)
+        p.circle(enemy.color, target, 12, 1)
 
 
 def _draw_warning(p, game):
@@ -66,6 +84,10 @@ def _draw_warning(p, game):
         )
     if not mini:
         p.text(game.game_font, "BOSS INCOMING!", (255, 120, 120), (p.width // 2, p.height // 2 + 40), anchor="center")
+    else:
+        style = MiniBoss.style_for_wave(game.wave)
+        p.text(game.game_font, f"{style.name} INCOMING", style.color,
+               (p.width // 2, p.height // 2 + 40), anchor="center")
 
 
 def _draw_wave_banner(p, game):
@@ -75,7 +97,8 @@ def _draw_wave_banner(p, game):
     if game.wave % 5 == 0:
         title, color, subtitle = f"BOSS WAVE  {game.wave}!", (255, 55, 55), "Defeat the boss!"
     elif game.wave % 5 == 3 and game.wave >= 3:
-        title, color, subtitle = f"WAVE  {game.wave}  —  MINI-BOSS", (255, 160, 0), "A raider is coming!"
+        style = MiniBoss.style_for_wave(game.wave)
+        title, color, subtitle = f"WAVE  {game.wave}  —  MINI-BOSS", style.color, f"{style.name} is approaching"
     else:
         title, color, subtitle = f"WAVE  {game.wave}", (255, 215, 50), "New aliens incoming!"
     bounds = p.text(game.wave_font, title, color, (p.width // 2, p.height // 3), anchor="center", alpha=alpha)

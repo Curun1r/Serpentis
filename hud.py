@@ -55,7 +55,7 @@ def _draw_boss_bars(p: WorldPainter, game: Game) -> None:
         name = names.get(getattr(game.boss, "_tier", 1), "BOSS")
         _draw_enemy_bar(p, game, game.boss, name, mini=False)
     if game.mini_boss:
-        _draw_enemy_bar(p, game, game.mini_boss, "RAIDER", mini=True)
+        _draw_enemy_bar(p, game, game.mini_boss, game.mini_boss.name, mini=True)
 
 
 def _draw_enemy_bar(p, game, enemy, name, mini):
@@ -63,7 +63,7 @@ def _draw_enemy_bar(p, game, enemy, name, mini):
     width, height = (360, 14) if mini else (min(560, game.screen_width - 80), 20)
     x = (game.screen_width - width) // 2
     y = game.screen_height - (44 if mini else 48)
-    border = (0, 180, 140) if mini else (160, 30, 210)
+    border = enemy.color if mini else (160, 30, 210)
     p.panel(
         (x - 12, y - 28, width + 24, height + 36),
         bg_color=(15, 35, 30) if mini else (20, 5, 30),
@@ -75,7 +75,7 @@ def _draw_enemy_bar(p, game, enemy, name, mini):
     if ratio > 0:
         fill = max(1, int(width * ratio))
         if mini:
-            color = (0, 200, 155) if ratio > 0.5 else (200, 160, 0) if ratio > 0.25 else (210, 80, 0)
+            color = enemy.color if ratio > 0.5 else (200, 160, 0) if ratio > 0.25 else (210, 80, 0)
         else:
             color = (45, 195, 55) if ratio > 0.66 else (220, 170, 0) if ratio > 0.33 else (210, 35, 35)
         p.rect(color, (x, y, fill, height), border_radius=5)
@@ -84,7 +84,7 @@ def _draw_enemy_bar(p, game, enemy, name, mini):
     p.text(
         game.game_font,
         f"{name}   {enemy.hp} / {enemy.max_hp}",
-        (180, 255, 230) if mini else (220, 180, 255),
+        tuple(min(255, c + 90) for c in enemy.color) if mini else (220, 180, 255),
         (game.screen_width // 2, y - 4),
         anchor="midbottom",
         shadow=(0, 40, 30) if mini else (60, 0, 90),

@@ -32,6 +32,8 @@ def validate_report(report: dict) -> dict:
         raise BuildVerificationError('Startup report did not verify persistent save data')
     if report.get('sprite_sizes') != EXPECTED_SPRITE_SIZES:
         raise BuildVerificationError('Built sprites do not match the standard alien/projectile sizes')
+    if report.get('mini_bosses') != ['RAIDER', 'HUNTER', 'WARDEN']:
+        raise BuildVerificationError('Built game did not exercise all three mini-boss encounters')
     size = report.get('render_size')
     if (not isinstance(size, list) or len(size) != 2 or
             not all(isinstance(value, int) and value > 0 for value in size) or size[1] < 1080):

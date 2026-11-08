@@ -14,7 +14,8 @@ import pygame
 from alien import ShooterAlien
 from alien_bullet import AlienBullet
 from ball import Ball
-from boss import Boss, MiniBoss
+from boss import Boss
+from mini_boss import MiniBoss
 from explosion import Explosion
 from game_state import GameState
 from powerup import HeartPowerUp, ShieldPowerUp, SlowTimePowerUp, TripleShotPowerUp
@@ -249,7 +250,7 @@ def update_boss(game: Game, dt: float) -> None:
 def update_mini_boss(game: Game, dt: float) -> None:
     if not game.mini_boss:
         return
-    game.mini_boss.update(dt)
+    game.mini_boss.update(dt, game.fighter.rect.center)
 
     for shot in game.mini_boss.drain_shots():
         game.alien_bullets.add(AlienBullet(*shot))
