@@ -50,13 +50,16 @@ def test_retry_reuses_hd_framebuffer_and_fonts_but_resets_run(gameplay):
 
 
 @pytest.mark.parametrize("state", [GameState.START, GameState.PLAYING])
-def test_present_reuses_opaque_scaling_buffer(gameplay, monkeypatch, state):
+@pytest.mark.parametrize("resize", [False, True])
+def test_present_reuses_opaque_scaling_buffer(gameplay, monkeypatch, state, resize):
     game = gameplay
     game.state = state
-    game.screen = pygame.Surface((1200, 800))
-    game._disp_w, game._disp_h = game.screen.get_size()
     frame = game._menu_canvas if state == GameState.START else game._canvas
-    frame.fill((235, 241, 255))
+    game.screen = pygame.Surface((1200, 800) if resize else frame.get_size())
+    game._disp_w, game._disp_h = game.screen.get_size()
+    # Low alpha can be left by direct shape drawing (e.g. splash highlights).
+    # Present finished RGB pixels, never blend them with an older frame.
+    frame.fill((235, 241, 255, 40))
     monkeypatch.setattr(pygame.display, "update", lambda: None)
     game._present(frame)
     buffer = game._presentation_canvas

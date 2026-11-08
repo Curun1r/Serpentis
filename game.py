@@ -256,10 +256,9 @@ class Game:
             self._presentation_canvas.set_alpha(None)
             self._presentation_format = presentation_format
         scaled = self._presentation_canvas
-        if view.size == frame.get_size():
-            scaled.blit(frame, (0, 0))
-        else:
-            pygame.transform.smoothscale(frame, view.size, scaled)
+        # A transform also copies matching sizes without alpha-blending a new
+        # frame over pixels left in this buffer by the previous frame.
+        pygame.transform.smoothscale(frame, view.size, scaled)
         self.screen.fill((0, 0, 0))
         previous_clip = self.screen.get_clip()
         self.screen.set_clip(view)
