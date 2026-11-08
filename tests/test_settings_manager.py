@@ -108,6 +108,29 @@ def test_legacy_mac_settings_default_to_current_display(settings_file, monkeypat
     assert settings.auto_resolution is True
     assert settings.resolution == (3024, 1964)
     assert settings.fullscreen is False
+    assert settings.aspect_ratio == '16:10'
+
+
+@pytest.mark.parametrize(('platform', 'native', 'expected'), [
+    ('darwin', (2560, 1600), '16:10'),
+    ('darwin', (3024, 1964), '16:10'),
+    ('darwin', (3456, 2234), '16:10'),
+    ('darwin', (3840, 2160), '16:9'),
+    ('darwin', (3440, 1440), '16:9'),
+    ('linux', (2560, 1600), '16:9'),
+    ('win32', (2560, 1600), '16:9'),
+])
+def test_macbook_displays_default_to_16_10(monkeypatch, platform, native, expected):
+    monkeypatch.setattr(settings_manager.sys, 'platform', platform)
+    monkeypatch.setattr(settings_manager, 'get_native_resolution', lambda: native)
+    assert Settings().aspect_ratio == expected
+
+
+def test_saved_aspect_overrides_macbook_default(settings_file, monkeypatch):
+    monkeypatch.setattr(settings_manager.sys, 'platform', 'darwin')
+    monkeypatch.setattr(settings_manager, 'get_native_resolution', lambda: (3024, 1964))
+    settings_file.write_text(json.dumps({'aspect_ratio': '21:9'}))
+    assert Settings().aspect_ratio == '21:9'
 
 
 def test_manual_mac_resolution_override_is_persisted(monkeypatch):
