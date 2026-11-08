@@ -1,7 +1,10 @@
 """Tests for config.json loading (config.py)."""
 import json
+from pathlib import Path
+import runpy
 
 import config
+import paths
 from paths import resource_path
 
 
@@ -40,3 +43,26 @@ def test_example_config_matches_expected_schema():
     with open(resource_path('config.example.json')) as f:
         example = json.load(f)
     assert set(example) <= {'screen', 'speeds', 'scales', 'gameplay'}
+
+
+def test_clean_release_defaults_match_the_documented_configuration(tmp_path, monkeypatch):
+    """A private, ignored config.json must not hide different release defaults."""
+    example = json.loads(Path(resource_path('config.example.json')).read_text())
+    monkeypatch.setattr(paths, 'resource_path', lambda name: str(tmp_path / name))
+    clean = runpy.run_path(config.__file__)
+    for section, names in {
+        'speeds': {'fighter': 'FIGHTER_SPEED', 'alien': 'ALIEN_SPEED', 'ball': 'BALL_SPEED'},
+        'scales': {'fighter': 'FIGHTER_SCALE', 'alien': 'ALIEN_SCALE', 'ball': 'BALL_SCALE'},
+        'gameplay': {'alien_count': 'ALIEN_COUNT', 'starting_lives': 'STARTING_LIVES',
+                     'alien_stagger': 'ALIEN_STAGGER'},
+    }.items():
+        for key, constant in names.items():
+            assert clean[constant] == example[section][key], constant
+
+
+def test_explicit_local_sprite_scale_overrides_remain_supported(tmp_path, monkeypatch):
+    (tmp_path / 'config.json').write_text(json.dumps({'scales': {'alien': .5, 'ball': .25}}))
+    monkeypatch.setattr(paths, 'resource_path', lambda name: str(tmp_path / name))
+    custom = runpy.run_path(config.__file__)
+    assert custom['ALIEN_SCALE'] == .5
+    assert custom['BALL_SCALE'] == .25

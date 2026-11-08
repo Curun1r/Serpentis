@@ -13,7 +13,8 @@ from scripts import checksums, verify_build
 
 def complete_report():
     return {'ok': True, 'application': APP_NAME, 'version': APP_VERSION,
-            'screens': sorted(verify_build.EXPECTED_SCREENS), 'save_data': 'passed'}
+            'screens': sorted(verify_build.EXPECTED_SCREENS), 'save_data': 'passed',
+            'sprite_sizes': {'alien': [44, 44], 'player_projectile': [9, 9]}}
 
 
 @pytest.fixture
@@ -60,6 +61,8 @@ def test_packaged_verifier_rejects_missing_or_invalid_json(executable, monkeypat
     ('ok', False), ('application', 'Other Game'), ('version', '0.0.0'),
     ('save_data', 'failed'), ('screens', ['menu']),
     ('screens', ['menu'] * 8), ('screens', None),
+    ('sprite_sizes', None), ('sprite_sizes', {}),
+    ('sprite_sizes', {'alien': [51, 51], 'player_projectile': [22, 22]}),
 ])
 def test_report_requires_correct_identity_version_saves_and_screen_coverage(field, value):
     report = complete_report()

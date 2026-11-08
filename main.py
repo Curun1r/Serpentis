@@ -45,6 +45,10 @@ def _smoke_test(game):
     game.state = GameState.PLAYING
     game._music.play_battle()
     game._shoot()
+    # Report real asset dimensions so release checks catch different defaults
+    # in a frozen build that does not include a developer's config.json.
+    sprite_sizes = {'alien': list(next(iter(game.aliens)).image.get_size()),
+                    'player_projectile': list(next(iter(game.balls)).image.get_size())}
     for _ in range(12):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -67,7 +71,7 @@ def _smoke_test(game):
     game._leaderboard.draw(game._menu_canvas, game._menu_context)
     rendered.append('leaderboard')
     return {'ok': True, 'application': APP_NAME, 'version': APP_VERSION,
-            'screens': rendered, 'save_data': 'passed'}
+            'screens': rendered, 'save_data': 'passed', 'sprite_sizes': sprite_sizes}
 
 
 def _run(smoke):

@@ -10,6 +10,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app_info import APP_NAME, APP_VERSION
 
 EXPECTED_SCREENS = {'menu', 'hangar', 'settings', 'controls', 'loading', 'gameplay', 'pause', 'results', 'leaderboard'}
+# Golden logical sizes from the game's intended default appearance.
+EXPECTED_SPRITE_SIZES = {'alien': [44, 44], 'player_projectile': [9, 9]}
 
 
 class BuildVerificationError(RuntimeError):
@@ -28,6 +30,8 @@ def validate_report(report: dict) -> dict:
         raise BuildVerificationError('Startup report did not cover all nine game screens')
     if report.get('save_data') != 'passed':
         raise BuildVerificationError('Startup report did not verify persistent save data')
+    if report.get('sprite_sizes') != EXPECTED_SPRITE_SIZES:
+        raise BuildVerificationError('Built sprites do not match the standard alien/projectile sizes')
     return report
 
 

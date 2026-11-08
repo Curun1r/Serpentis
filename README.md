@@ -1,6 +1,6 @@
 # Serpentis
 
-**Current release:** [Serpentis 1.9.0](https://github.com/Curun1r/Serpentis/releases/tag/serpentis_1.9.0)
+**Current release:** [Serpentis 1.9.1](https://github.com/Curun1r/Serpentis/releases/tag/serpentis_1.9.1)
 
 A fast-paced 2-D space shooter built with Python and pygame.  
 Destroy waves of alien invaders, survive boss encounters, collect power-ups, and chase the high score.
@@ -19,8 +19,18 @@ Destroy waves of alien invaders, survive boss encounters, collect power-ups, and
 
 Or browse all releases → **[github.com/Curun1r/Serpentis/releases](https://github.com/Curun1r/Serpentis/releases)**
 
-> **macOS note:** after unzipping, right-click `Serpentis.app` → Open (first launch only, to bypass Gatekeeper).  
-> **Linux note:** extract the archive, then `chmod +x Serpentis && ./Serpentis`.
+**macOS — first launch:**
+
+1. Extract `Serpentis-macOS.zip`, move `Serpentis.app` to **Applications**, and open it.
+2. If macOS says **“Apple could not verify Serpentis”**, click **Done**.
+3. Open **System Settings → Privacy & Security**, scroll to **Security**, and click **Open Anyway** beside the Serpentis notice.
+4. Confirm **Open** and authenticate if requested. macOS remembers the exception for this copy of the app.
+
+The current Mac build is not signed with an Apple Developer ID or notarized by Apple.
+Use these steps for the copy downloaded from this repository's releases; they grant an exception for Serpentis.
+See [Apple's opening instructions](https://support.apple.com/en-us/102445).
+
+**Linux:** extract the archive, then `chmod +x Serpentis && ./Serpentis`.
 
 ---
 
@@ -90,6 +100,7 @@ Gameplay and interface previews. Leaderboard examples use demonstration runs.
 - **Keyboard-friendly menus** — shared focus states, readable panels, and an in-game How to Play guide
 - **Automatic Mac display mode** — follows the current monitor and respects macOS display scaling; manual resolution remains available
 - **Selectable game aspect ratio** — Auto, 16:9, 16:10, 4:3 or 21:9 change the playfield width without stretching ships; menus retain their 1280×720 layout and mouse input follows the active viewport
+- **Consistent sprite proportions** — aliens and projectiles use the same default sizes in source and desktop builds, with one proportional scale for the whole playfield at any resolution
 - **Precise frame pacing** — 30, 60, 120, 144 or 240 FPS caps and a No Limit option, with a measured frame counter
 
 ---
@@ -186,7 +197,10 @@ loads bundled images, generates audio, and verifies settings and scores in dispo
 .venv/bin/python main.py --smoke-test --smoke-report startup-report.json
 ```
 
-The report includes the application/version and success status. This check leaves player saves untouched.
+The report includes the application/version, success status, and actual alien/projectile dimensions.
+Release verification rejects builds with incorrect sprite sizes. It checks the application itself;
+it does not validate Apple's signing/notarization requirements or the first-launch Gatekeeper prompt.
+This check leaves player saves untouched.
 Normal startup failures are recorded in `data/startup.log` for source runs, or in the application's
 per-user save folder for desktop builds. Source saves stay in this project's `data/` directory regardless
 of the working directory. Packaged saves remain in:

@@ -35,9 +35,11 @@ ALIEN_SPEED: float   = _cfg.get('speeds', {}).get('alien',   48)
 BALL_SPEED: float    = _cfg.get('speeds', {}).get('ball',    264)
 
 # --- Sprite scale multipliers ---
+# Match config.example.json: release builds have no private config.json.
+# Sizes are logical world pixels; Game scales the entire canvas once for display.
 FIGHTER_SCALE: float = _cfg.get('scales', {}).get('fighter', 1.5)
-ALIEN_SCALE: float   = _cfg.get("scales", {}).get("alien",   0.75)
-BALL_SCALE: float    = _cfg.get('scales', {}).get('ball',    1.0)
+ALIEN_SCALE: float   = _cfg.get("scales", {}).get("alien",   0.65)
+BALL_SCALE: float    = _cfg.get('scales', {}).get('ball',    0.45)
 
 # --- Gameplay ---
 ALIEN_COUNT: int     = _cfg.get('gameplay', {}).get('alien_count',    3)

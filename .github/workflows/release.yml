@@ -4,8 +4,8 @@ name: Build & Release
 # with PyInstaller, then attaches them to a GitHub Release.
 #
 # Trigger a release by tagging a commit and pushing the tag:
-#   git tag serpentis_1.9.0
-#   git push origin serpentis_1.9.0
+#   git tag serpentis_1.9.1
+#   git push origin serpentis_1.9.1
 #
 # You can also run it manually from the Actions tab (workflow_dispatch).
 
