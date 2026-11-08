@@ -21,6 +21,7 @@ from display_layout import (
     game_canvas_size,
     get_native_resolution,
     remember_display,
+    render_canvas_size,
 )
 from effects import VisualEffects
 from fighter import Fighter
@@ -38,6 +39,7 @@ from screens.start import StartScreen
 from settings_manager import Settings
 from ship import SHIPS, ShipConfig
 from ship_sprites import build_ship
+from world_painter import WorldPainter
 
 # Menus retain their design size. Gameplay uses the chosen ratio at height 720.
 _LOGICAL_W, _LOGICAL_H = 1280, 720
@@ -120,6 +122,7 @@ class Game:
         self.med_font = fonts["med"]
         self.small_font = fonts["small"]
         self.wave_font = fonts["wave"]
+        self._font_sizes = {fonts[name]: size for name, size in {'game': 36, 'med': 52, 'small': 26, 'wave': 86}.items()}
 
         return fonts
 
@@ -202,11 +205,17 @@ class Game:
         self._display_index = max(0, min(self._display_index, pygame.display.get_num_displays() - 1))
         remember_display(self._display_index)
         self._native_mode = get_native_resolution(self._display_index)
-        if s.auto_resolution:
-            size = self._native_mode if s.fullscreen else choose_window_size(self._native_mode)
+        if s.fullscreen:
+            # A desktop-size framebuffer avoids SDL adding a second set of bars.
+            size = self._native_mode
+        elif s.auto_resolution:
+            size = choose_window_size(self._native_mode)
         else:
             size = s.resolution
-        flags = pygame.SCALED | (pygame.FULLSCREEN if s.fullscreen else 0)
+            available = choose_window_size(self._native_mode)
+            if size[0] > available[0] or size[1] > available[1]:
+                size = fit_viewport(available, size).size
+        flags = pygame.FULLSCREEN if s.fullscreen else 0
         self.screen = pygame.display.set_mode(size, flags, display=self._display_index, vsync=0)
         self._disp_w, self._disp_h = self.screen.get_size()
         self._viewport = fit_viewport((self._disp_w, self._disp_h))
@@ -215,25 +224,35 @@ class Game:
         """Recreate the window on its current monitor and preserve game proportions."""
         self._open_display(display_index)
         self._update_screen_layouts()
+        self._configure_render_target()
+
+    def _configure_render_target(self) -> None:
+        settings = Settings.get()
+        resolution = self._native_mode if settings.auto_resolution else settings.resolution
+        logical_size = (self.screen_width, self.screen_height)
+        self._canvas = pygame.Surface(render_canvas_size(logical_size, resolution))
+        self._painter = WorldPainter(self._canvas, logical_size, self._font_sizes)
 
     @property
     def current_fps(self) -> float:
         return self._frame_limiter.fps
 
     def _present(self, frame: pygame.Surface | None = None) -> None:
-        """Render the active canvas at its true ratio, with clipped camera shake."""
+        """Present the active frame with the selected Fill/Fit mode and clipped shake."""
         frame = self._canvas if frame is None else frame
-        self._viewport = fit_viewport((self._disp_w, self._disp_h), frame.get_size())
+        self._viewport = fit_viewport((self._disp_w, self._disp_h), frame.get_size(), Settings.get().fill_screen)
         view = self._viewport
         scaled = frame if view.size == frame.get_size() else pygame.transform.smoothscale(frame, view.size)
         self.screen.fill((0, 0, 0))
         previous_clip = self.screen.get_clip()
         self.screen.set_clip(view)
+        logical_width, logical_height = ((self.screen_width, self.screen_height) if frame is self._canvas
+                                         else (_LOGICAL_W, _LOGICAL_H))
         self.screen.blit(
             scaled,
             (
-                view.x + round(self._shake_ox * view.w / frame.get_width()),
-                view.y + round(self._shake_oy * view.h / frame.get_height()),
+                view.x + round(self._shake_ox * view.w / logical_width),
+                view.y + round(self._shake_oy * view.h / logical_height),
             ),
         )
         self.screen.set_clip(previous_clip)
@@ -258,8 +277,9 @@ class Game:
 
     def _lpos(self, pos: tuple[int, int]) -> tuple[int, int]:
         world = self.state in (GameState.PLAYING, GameState.DYING, GameState.PAUSED)
-        size = self._canvas.get_size() if world else (_LOGICAL_W, _LOGICAL_H)
-        view = fit_viewport((self._disp_w, self._disp_h), size)
+        size = (self.screen_width, self.screen_height) if world else (_LOGICAL_W, _LOGICAL_H)
+        frame_size = self._canvas.get_size() if world else size
+        view = fit_viewport((self._disp_w, self._disp_h), frame_size, Settings.get().fill_screen)
         if not view.collidepoint(pos):
             return (-1, -1)
         return (int((pos[0] - view.x) * size[0] / view.w), int((pos[1] - view.y) * size[1] / view.h))
@@ -277,7 +297,7 @@ class Game:
         size = game_canvas_size(self._run_aspect, self._native_mode)
         self.screen_width, self.screen_height = size
         config.SCREEN_WIDTH, config.SCREEN_HEIGHT = size
-        self._canvas = pygame.Surface(size)
+        self._configure_render_target()
         self.background = StarBackground(*size)
         self._run_elapsed = 0.0
         self.game_score = 0
@@ -388,7 +408,9 @@ class Game:
             self._draw()
         elif self.state == GameState.PAUSED:
             self._draw()
-            self._pause.draw(frame, self)
+            overlay = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
+            self._pause.draw(overlay, self)
+            self._painter.blit(overlay, (0, 0))
         else:
             screen = self._menu_screen()
             if screen:

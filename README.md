@@ -96,11 +96,11 @@ Gameplay and interface previews. Leaderboard examples use demonstration runs.
 - **Visual effects** — particle explosions, engine trail, camera shake, shield ring, slow-time tint
 - **Procedural audio** — every sound generated at runtime via numpy (no audio files required)
 - **Top-100 personal leaderboard** — filter by ship and difficulty, sort by score, wave or date, and browse eight runs per page; each run records its date, duration and game aspect ratio
-- **Settings** — volume, automatic or manual resolution, game aspect ratio, maximum FPS, live FPS counter, difficulty and fullscreen
+- **Settings** — volume, automatic or manual resolution, game aspect ratio, Fill/Fit scaling, maximum FPS, live FPS counter, difficulty and fullscreen
 - **Keyboard-friendly menus** — shared focus states, readable panels, and an in-game How to Play guide
 - **Automatic Mac display mode** — follows the current monitor and respects macOS display scaling; manual resolution remains available
-- **Selectable game aspect ratio** — Auto, 16:9, 16:10, 4:3 or 21:9 change the playfield width without stretching ships; menus retain their 1280×720 layout and mouse input follows the active viewport
-- **Consistent sprite proportions** — aliens and projectiles use the same default sizes in source and desktop builds, with one proportional scale for the whole playfield at any resolution
+- **Selectable game aspect ratio** — Auto, 16:9, 16:10, 4:3 or 21:9 set the playfield shape; Fill covers the display and Fit preserves proportions with bars, with matching mouse coordinates
+- **HD gameplay rendering** — world geometry and HUD fonts render directly at Full HD or higher, independently of movement and collision coordinates; 16:10 starts at 1920×1200
 - **Precise frame pacing** — 30, 60, 120, 144 or 240 FPS caps and a No Limit option, with a measured frame counter
 
 ---
@@ -127,9 +127,11 @@ Gameplay and interface previews. Leaderboard examples use demonstration runs.
 
 In menus, use `Up` / `Down` or `Tab` to navigate and `Enter` to select. Settings use `Left` / `Right` to adjust the focused row. In the hangar, use `Left` / `Right` to choose a ship and `Enter` to launch. Open **How to Play** from the main menu for controls and pickup descriptions.
 
-On macOS, **AUTO** resolution is enabled by default. Fullscreen uses the current monitor's desktop resolution; windowed mode leaves room for the system menu bar and Dock. The game adapts when moved to another monitor and keeps its proportions. Choose a fixed resolution in Settings to disable Auto.
+On macOS, **AUTO** resolution is enabled by default. Fullscreen uses the current monitor's desktop resolution; windowed mode leaves room for the system menu bar and Dock. The game adapts when moved to another monitor and keeps its proportions. Choose a fixed resolution in Settings to disable Auto. Fullscreen always uses the desktop-sized window; the chosen resolution controls gameplay rendering quality.
 
-**Game aspect ratio** is separate from the window resolution. Choose **Auto**, **16:9**, **16:10**, **4:3** or **21:9** to set the playfield for your next flight. Auto uses the connected display's proportions, within the supported 4:3 to 32:9 range. The camera width changes while ships keep their proportions; any unused window area is letterboxed. New source installations on macOS prefer **16:10** when the connected display is closest to that format, including MacBook display modes. Other displays keep the 16:9 default, and existing saved choices take precedence. Aspect and difficulty changes take effect when you start or retry a flight.
+**Game aspect ratio** is separate from the window resolution. Choose **Auto**, **16:9**, **16:10**, **4:3** or **21:9** to set the playfield for your next flight. Auto uses the connected display's proportions, within the supported 4:3 to 32:9 range. The camera width changes while object sizes in the game stay consistent. **Fill Screen** fills the entire window and may stretch the image when its ratio differs from the playfield; **Fit / Keep Ratio** preserves proportions with black bars. Fill is the default. New source installations on macOS prefer **16:10** when the connected display is closest to that format, including MacBook display modes. Other displays keep the 16:9 default, and existing saved choices take precedence. Aspect and difficulty changes take effect when you start or retry a flight.
+
+**Rendering resolution:** the game scene renders at least 1920×1080, or 1920×1200 for 16:10. Higher resolution selections increase that framebuffer, while Auto follows the current desktop mode with the same HD minimum. Windowed mode fits within the desktop; fullscreen covers the desktop even with a lower selected rendering resolution. Settings shows both the connected display size and the actual game render size. Menus retain their 1280×720 design canvas and scale for presentation.
 
 **Maximum FPS** applies immediately: choose **30**, **60**, **120**, **144**, **240** or **No Limit** (`0` as the frame cap). The live counter reports measured rendering FPS in Settings and during play. A cap is a maximum, so demanding scenes or slower hardware can run below it. Rendering FPS and monitor refresh rate are different: a 60 Hz monitor cannot display 144 distinct frames each second.
 
@@ -263,6 +265,7 @@ ui_fx.py             — glass panels, damage numbers, glow effects
 ui_theme.py          — shared menu colors, buttons, focus, and leaderboard
 display_layout.py    — monitor detection, automatic sizing, proportional viewport
 frame_timing.py      — precise FPS limits and measured frame rate
+world_painter.py     — logical world coordinates to HD geometry, fonts and cached sprites
 score_manager.py     — top-100 records, validation, filters and atomic JSON saves
 settings_manager.py  — display, aspect, FPS, sound and difficulty preferences (JSON)
 assets.py            — image / sound cache + procedural audio
@@ -281,7 +284,9 @@ events, advances the current screen, applies a fade, and presents the result.
 collecting pickups or advancing a wave. `rendering` and `hud` read the run state;
 `VisualEffects` owns and resets temporary visual state for each new flight.
 
-Drawing does not advance the simulation. The controller advances flash/shake
+Drawing does not advance the simulation. The world painter draws directly into the HD framebuffer using logical 720-unit world coordinates. It scales geometry and rasterizes HUD fonts at the target resolution without changing actor images, movement or collision bounds. Text and sprite caches avoid repeating static work.
+
+The controller advances flash/shake
 counters after painting the world, preserving the existing visual timing.
 Imports used only for type annotations stay behind `TYPE_CHECKING`, so these
 modules do not need to import the application controller at runtime.

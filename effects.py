@@ -137,3 +137,20 @@ class VisualEffects:
     def draw(self, surface: pygame.Surface) -> None:
         self.draw_particles(surface)
         DamageNumber.draw_all(self.damage_numbers, surface)
+
+    def draw_scaled(self, painter) -> None:
+        for particle in self.particles:
+            ratio = particle['life'] / particle['max_life']
+            color = tuple(int(channel * ratio) for channel in particle['color'])
+            size = particle['size']
+            painter.rect(color, (particle['x'] - size // 2, particle['y'] - size // 2, size, size))
+        for label in self.damage_numbers:
+            alpha = int(255 * max(0, label.lifetime / label.max_life))
+            if alpha > 0:
+                painter.blit(label._surf, (label.x - label._surf.get_width() // 2, label.y), alpha)
+
+    def draw_engine_scaled(self, painter) -> None:
+        for particle in self.engine_particles:
+            ratio = particle['life'] / particle['max_life']
+            color = tuple(int(particle[channel] * ratio) for channel in ('r', 'g', 'b'))
+            painter.circle(color, (particle['x'], particle['y']), max(1, int(particle['size'] * ratio)))

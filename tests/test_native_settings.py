@@ -24,15 +24,15 @@ def test_settings_survives_real_sdl_events_and_clean_shutdown(tmp_path):
         instance = game.Game()
         for _ in range(60):
             instance.state = game.GameState.SETTINGS
-            instance._settings.draw(instance._canvas, instance)
+            instance._settings.draw(instance._menu_canvas, instance._menu_context)
             pygame.event.pump()
             for event in pygame.event.get():
                 if event.type != pygame.QUIT:
                     instance._handle_event(event)
-            instance._present()
+            instance._present(instance._menu_canvas)
             instance.state = game.GameState.START
-            instance._start_screen.draw(instance._canvas, instance)
-            instance._present()
+            instance._start_screen.draw(instance._menu_canvas, instance._menu_context)
+            instance._present(instance._menu_canvas)
         pygame.quit()
         print('clean shutdown')
     ''')

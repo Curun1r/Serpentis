@@ -48,6 +48,7 @@ class Settings:
         self.show_fps: bool = True
         self.difficulty: str = 'normal'
         self.fullscreen: bool = False
+        self.fill_screen: bool = True
         self.load()
 
     @classmethod
@@ -72,6 +73,8 @@ class Settings:
             d = data.get('difficulty', 'normal')
             self.difficulty = d if d in DIFFICULTY_CONFIG else 'normal'
             self.fullscreen = bool(data.get('fullscreen', False))
+            fill_screen = data.get('fill_screen', True)
+            self.fill_screen = fill_screen if isinstance(fill_screen, bool) else True
             fi = int(data.get('fps_index', 1))
             self.fps_index = fi if 0 <= fi < len(FRAMERATES) else 1
             aspect = data.get('aspect_ratio', self.aspect_ratio)
@@ -94,6 +97,7 @@ class Settings:
                 'show_fps': self.show_fps,
                 'difficulty': self.difficulty,
                 'fullscreen': self.fullscreen,
+                'fill_screen': self.fill_screen,
             }, f, indent=2)
 
     @property

@@ -15,9 +15,11 @@ def test_new_round_applies_ratio_without_stretching_ship(gameplay, aspect, width
     original_ship_size = game.fighter.image.get_size()
     game._native_mode = (3024, 1964)
     Settings.get().aspect_ratio = aspect
-    assert game._canvas.get_size() == (1280, 720)
+    assert game._canvas.get_size() == (1920, 1080)
     game._init_game()
-    assert game._canvas.get_size() == (width, 720)
+    render_width, render_height = game._canvas.get_size()
+    assert render_width >= 1920 and render_height >= 1080
+    assert render_width / render_height == pytest.approx(width / 720, abs=.001)
     assert (config.SCREEN_WIDTH, config.SCREEN_HEIGHT) == (width, 720)
     assert game.fighter.image.get_size() == original_ship_size
     assert game.fighter.rect.centerx == pytest.approx(width / 2, abs=1)
@@ -52,7 +54,8 @@ def test_auto_ratio_tracks_monitor_even_with_manual_window_size(gameplay, monkey
     monkeypatch.setattr(game_module, 'get_native_resolution', lambda index: (3440, 1440))
     game._handle_event(pygame.event.Event(pygame.WINDOWDISPLAYCHANGED, display_index=1))
     game._init_game()
-    assert game._canvas.get_size() == (1720, 720)
+    assert (game.screen_width, game.screen_height) == (1720, 720)
+    assert game._canvas.get_size() == (2580, 1080)
 
 
 @pytest.mark.parametrize(('native', 'expected'), [((1080, 1920), (960, 720)),

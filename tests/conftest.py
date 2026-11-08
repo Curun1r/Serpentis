@@ -31,6 +31,8 @@ def gameplay(pygame_context, tmp_path, monkeypatch):
     monkeypatch.setattr(settings_manager.Settings, '_instance', None)
     settings_manager.Settings.get().resolution_index = 1
     settings_manager.Settings.get().auto_resolution = False
+    # Legacy geometry regressions exercise FIT; fill behavior has separate cases.
+    settings_manager.Settings.get().fill_screen = False
     # Reuse a headless surface: SDL's dummy driver cannot recreate SCALED renderers.
     monkeypatch.setattr(pygame.display, 'set_mode', lambda *args, **kwargs: pygame_context)
     # Music synthesis is unrelated to gameplay; avoid starting background threads.

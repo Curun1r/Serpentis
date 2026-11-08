@@ -9,7 +9,7 @@ from ui_theme import (TEXT, MUTED, DIM, CYAN, GREEN, RED, BORDER,
 class SettingsScreen:
     """Return display actions to Game while persisting other preferences directly."""
 
-    _ROWS = ('volume', 'resolution', 'aspect', 'fps', 'difficulty', 'fullscreen', 'show_fps', 'back')
+    _ROWS = ('volume', 'resolution', 'aspect', 'fps', 'difficulty', 'fullscreen', 'fill', 'show_fps', 'back')
     _DIFFICULTIES = ('easy', 'normal', 'hard')
 
     def __init__(self, fonts: dict):
@@ -37,8 +37,9 @@ class SettingsScreen:
                           for i in range(len(FRAMERATES))],
             'diff_rects': [pygame.Rect(dx + 132 + i * 222, 536, 210, 38)
                            for i in range(len(self._DIFFICULTIES))],
-            'fullscreen_rect': pygame.Rect(dx + 868, 208, 288, 46),
-            'show_fps_rect': pygame.Rect(dx + 868, 286, 288, 46),
+            'fullscreen_rect': pygame.Rect(dx + 868, 200, 288, 40),
+            'fill_rect': pygame.Rect(dx + 868, 270, 288, 40),
+            'show_fps_rect': pygame.Rect(dx + 868, 344, 288, 40),
             'back_rect': pygame.Rect(dx + 868, 568, 288, 48),
         }
 
@@ -111,22 +112,26 @@ class SettingsScreen:
         rect = lay['fullscreen_rect']
         button(canvas, rect, 'FULLSCREEN' if s.fullscreen else 'WINDOWED', self.game_font,
                hover=rect.collidepoint(mouse), focused=self.focus.active(5), primary=s.fullscreen)
-        text(canvas, self.small_font, 'LIVE FRAME COUNTER', (dx, 262), MUTED)
+        text(canvas, self.small_font, 'SCREEN SCALING', (dx, 244), MUTED)
+        rect = lay['fill_rect']
+        button(canvas, rect, 'FILL SCREEN' if s.fill_screen else 'FIT / KEEP RATIO', self.game_font,
+               hover=rect.collidepoint(mouse), focused=self.focus.active(6), primary=s.fill_screen)
+        text(canvas, self.small_font, 'LIVE FRAME COUNTER', (dx, 318), MUTED)
         rect = lay['show_fps_rect']
         button(canvas, rect, 'FPS COUNTER: ON' if s.show_fps else 'FPS COUNTER: OFF', self.game_font,
-               hover=rect.collidepoint(mouse), focused=self.focus.active(6), primary=s.show_fps)
+               hover=rect.collidepoint(mouse), focused=self.focus.active(7), primary=s.show_fps)
         native_w, native_h = s.native_resolution
-        text(canvas, self.small_font, 'CONNECTED DISPLAY', (dx, 370), MUTED)
-        text(canvas, self.game_font, f'{native_w} x {native_h}', (dx, 400), CYAN)
-        text(canvas, self.small_font, 'Auto follows this display.', (dx, 444), TEXT)
-        text(canvas, self.small_font, 'FPS is a limit, not a guarantee.', (dx, 484), MUTED)
+        text(canvas, self.small_font, 'CONNECTED DISPLAY', (dx, 402), MUTED)
+        text(canvas, self.game_font, f'{native_w} x {native_h}', (dx, 428), CYAN)
+        render_width, render_height = game._canvas.get_size()
+        text(canvas, self.small_font, f'RENDER: {render_width} x {render_height}', (dx, 476), TEXT)
         current_fps = getattr(game, 'current_fps', 0.0)
         live = f'CURRENT: {current_fps:.1f} FPS' if current_fps > 0 else 'CURRENT: MEASURING...'
         text(canvas, self.small_font, live, (dx, 512), CYAN)
-        text(canvas, self.small_font, 'Monitor refresh can be lower.', (dx, 540), DIM)
+        text(canvas, self.small_font, 'Fill stretches. Fit adds bars.', (dx, 540), DIM)
         rect = lay['back_rect']
         button(canvas, rect, 'BACK TO MENU', self.game_font,
-               hover=rect.collidepoint(mouse), focused=self.focus.active(7))
+               hover=rect.collidepoint(mouse), focused=self.focus.active(8))
         footer(canvas, self.small_font,
                'UP / DOWN or TAB: focus     LEFT / RIGHT: change     ENTER: select     ESC: back')
 
@@ -178,13 +183,19 @@ class SettingsScreen:
             game.ui_click_sound.play()
             return 'fullscreen'
         if lay['show_fps_rect'].collidepoint(lpos):
-            self.focus.select(6)
+            self.focus.select(7)
             s.show_fps = not s.show_fps
             s.save()
             game.ui_click_sound.play()
             return None
+        if lay['fill_rect'].collidepoint(lpos):
+            self.focus.select(6)
+            s.fill_screen = not s.fill_screen
+            s.save()
+            game.ui_click_sound.play()
+            return None
         if lay['back_rect'].collidepoint(lpos):
-            self.focus.select(7)
+            self.focus.select(8)
             self._finish_volume_drag()
             game.ui_click_sound.play()
             return 'back'
@@ -211,6 +222,11 @@ class SettingsScreen:
             return 'back' if not adjusting else None
         if row == 'fullscreen':
             return 'fullscreen'
+        if row == 'fill':
+            s.fill_screen = not s.fill_screen
+            s.save()
+            game.ui_click_sound.play()
+            return None
         if row == 'show_fps':
             s.show_fps = not s.show_fps
             s.save()

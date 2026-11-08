@@ -48,12 +48,14 @@ def get_native_resolution(display_index: int | None = None) -> tuple[int, int]:
 
 
 def fit_viewport(display_size: tuple[int, int],
-                 logical_size: tuple[int, int] = DEFAULT_SIZE) -> pygame.Rect:
+                 logical_size: tuple[int, int] = DEFAULT_SIZE, fill: bool = False) -> pygame.Rect:
     """Center the largest proportional canvas that fits inside the display."""
     width, height = display_size
     logical_width, logical_height = logical_size
     if min(width, height, logical_width, logical_height) <= 0:
         raise ValueError('Display and logical dimensions must be positive')
+    if fill:
+        return pygame.Rect(0, 0, width, height)
     if width * logical_height <= height * logical_width:
         view_width, view_height = width, max(1, width * logical_height // logical_width)
     else:
@@ -69,8 +71,15 @@ def choose_window_size(native_size: tuple[int, int]) -> tuple[int, int]:
 
 
 def game_canvas_size(aspect_ratio: str, native_size: tuple[int, int]) -> tuple[int, int]:
-    """Change the playfield width, never stretch sprites to imitate a ratio."""
+    """Logical playfield bounds; render_canvas_size controls framebuffer pixels."""
     ratios = {'16:9': 16 / 9, '16:10': 16 / 10, '4:3': 4 / 3, '21:9': 21 / 9}
     ratio = native_size[0] / native_size[1] if aspect_ratio == 'auto' else ratios.get(aspect_ratio, 16 / 9)
     # Keep the HUD usable on portrait displays while supporting up to 32:9.
     return max(960, min(2560, round(720 * ratio))), 720
+
+
+def render_canvas_size(logical_size: tuple[int, int], resolution: tuple[int, int]) -> tuple[int, int]:
+    """Cover the selected HD pixel budget while retaining the world's ratio."""
+    width, height = logical_size
+    scale = max(1920 / width, 1080 / height, resolution[0] / width, resolution[1] / height)
+    return round(width * scale), round(height * scale)

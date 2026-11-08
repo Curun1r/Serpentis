@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING
 
 import pygame
 
-import config
 from app_info import APP_NAME, APP_TAGLINE, APP_VERSION, DEVELOPER_NAME
 from game_state import GameState
 from hud import draw_hud
@@ -19,106 +18,68 @@ if TYPE_CHECKING:
 
 
 def draw_world(game: Game) -> None:
-    """Paint background, actors, visual overlays and HUD without advancing state."""
-    cv = game._canvas
-    game.background.draw(cv)
-
-    if game.boss:
-        cv.blit(game.boss.image, game.boss.rect)
-    if game.mini_boss:
-        cv.blit(game.mini_boss.image, game.mini_boss.rect)
-
-    game._effects.draw_engine_trail(cv)  # trail behind ship
+    """Paint directly at the configured resolution, keeping world units stable."""
+    p = game._painter
+    game.background.draw_scaled(p)
+    for enemy in (game.boss, game.mini_boss):
+        if enemy:
+            p.sprite(enemy)
+    game._effects.draw_engine_scaled(p)
     if game.state != GameState.DYING:
-        cv.blit(game.fighter.image, game.fighter.rect)
-    game.aliens.draw(cv)
-    game.balls.draw(cv)
-    game.alien_bullets.draw(cv)
-    game.powerups.draw(cv)
-    game.explosions.draw(cv)
-    game._effects.draw(cv)
+        p.sprite(game.fighter)
+    for group in (game.aliens, game.balls, game.alien_bullets, game.powerups, game.explosions):
+        p.group(group)
+    game._effects.draw_scaled(p)
 
-    _draw_shield(cv, game)
-    _draw_slow_time_tint(cv, game)
-    _draw_boss_warning(cv, game)
-    _draw_wave_banner(cv, game)
-    _draw_hit_flash(cv, game)
-    draw_hud(cv, game)
-
-
-def _draw_shield(cv: pygame.Surface, game: Game) -> None:
-    # Shield ring
     if game._shield_active:
-        scx, scy = game.fighter.rect.center
-        r = max(game.fighter.width, game.fighter.height) // 2 + 11
-        pulse = 0.55 + 0.45 * math.sin(pygame.time.get_ticks() / 180.0)
-        _sh = pygame.Surface((r * 2 + 4, r * 2 + 4), pygame.SRCALPHA)
-        pygame.draw.circle(_sh, (70, 150, 255, int(140 * pulse)), (r + 2, r + 2), r, 3)
-        cv.blit(_sh, (scx - r - 2, scy - r - 2))
-
-
-def _draw_slow_time_tint(cv: pygame.Surface, game: Game) -> None:
-    # Slow-time tint
+        radius = max(game.fighter.width, game.fighter.height) // 2 + 11
+        pulse = 0.55 + 0.45 * math.sin(pygame.time.get_ticks() / 180)
+        p.circle((70, 150, 255, int(140 * pulse)), game.fighter.rect.center, radius, 3)
     if game._slow_time_timer > 0:
-        _st = pygame.Surface((config.SCREEN_WIDTH, config.SCREEN_HEIGHT), pygame.SRCALPHA)
-        _st.fill((25, 45, 180, 22))
-        cv.blit(_st, (0, 0))
-
-
-def _draw_boss_warning(cv: pygame.Surface, game: Game) -> None:
-    # Boss / mini-boss WARNING animation
-    if game._boss_warning_timer > 0:
-        t = pygame.time.get_ticks() / 1000.0
-        sw, sh = config.SCREEN_WIDTH, config.SCREEN_HEIGHT
-        is_mini = game.wave % 5 == 3
-        # Pulsing screen edge — thinner/subtler for mini-boss
-        pulse_a = int(60 + 50 * math.sin(t * 8.0))
-        edge = pygame.Surface((sw, sh), pygame.SRCALPHA)
-        thicks = (10, 4) if is_mini else (18, 8)
-        for thick, alpha in zip(thicks, (pulse_a, pulse_a // 2)):
-            col = (255, 80, 0, alpha) if is_mini else (255, 20, 20, alpha)
-            pygame.draw.rect(edge, col, (0, 0, sw, sh), thick)
-        cv.blit(edge, (0, 0))
-        # WARNING text — mini-boss uses smaller font, boss keeps big font
-        if int(t * 4) % 2 == 0:
-            warn_col = (255, 160, 0) if is_mini else (255, 30, 30)
-            warn_txt = "MINI-BOSS" if is_mini else "!! WARNING !!"
-            warn_font = game.med_font if is_mini else game.wave_font
-            ws = warn_font.render(warn_txt, True, warn_col)
-            cv.blit(ws, ws.get_rect(centerx=sw // 2, centery=sh // 2 - 20))
-        if not is_mini:
-            ss = game.game_font.render("BOSS INCOMING!", True, (255, 120, 120))
-            cv.blit(ss, ss.get_rect(centerx=sw // 2, centery=sh // 2 + 40))
-
-
-def _draw_wave_banner(cv: pygame.Surface, game: Game) -> None:
-    # Wave banner
-    if game._wave_banner_timer > 0:
-        alpha = 255 if game._wave_banner_timer >= 0.5 else int(255 * game._wave_banner_timer / 0.5)
-        is_boss = game.wave % 5 == 0
-        is_mini = game.wave % 5 == 3 and game.wave >= 3
-        if is_boss:
-            b_txt, b_color, s_txt = f"BOSS WAVE  {game.wave}!", (255, 55, 55), "Defeat the boss!"
-        elif is_mini:
-            b_txt, b_color, s_txt = f"WAVE  {game.wave}  —  MINI-BOSS", (255, 160, 0), "A raider is coming!"
-        else:
-            b_txt, b_color, s_txt = f"WAVE  {game.wave}", (255, 215, 50), "New aliens incoming!"
-        banner = game.wave_font.render(b_txt, True, b_color)
-        banner.set_alpha(alpha)
-        sub = game.game_font.render(s_txt, True, (200, 200, 200))
-        sub.set_alpha(alpha)
-        bx = config.SCREEN_WIDTH // 2 - banner.get_width() // 2
-        by = config.SCREEN_HEIGHT // 3 - banner.get_height() // 2
-        cv.blit(banner, (bx, by))
-        cv.blit(sub, sub.get_rect(centerx=config.SCREEN_WIDTH // 2, top=by + banner.get_height() + 4))
-
-
-def _draw_hit_flash(cv: pygame.Surface, game: Game) -> None:
-    # Hit flash
+        p.tint((25, 45, 180, 22))
+    _draw_warning(p, game)
+    _draw_wave_banner(p, game)
     if game.flash_timer > 0:
-        fs = pygame.Surface((config.SCREEN_WIDTH, config.SCREEN_HEIGHT), pygame.SRCALPHA)
-        fs.fill((255, 0, 0, int(game.flash_timer * 4.5)))
-        cv.blit(fs, (0, 0))
+        p.tint((255, 0, 0, int(game.flash_timer * 4.5)))
+    draw_hud(p, game)
+
+
+def _draw_warning(p, game):
+    if game._boss_warning_timer <= 0:
+        return
+    t = pygame.time.get_ticks() / 1000
+    mini = game.wave % 5 == 3
+    alpha = int(60 + 50 * math.sin(t * 8))
+    for width, opacity in zip((10, 4) if mini else (18, 8), (alpha, alpha // 2)):
+        color = (255, 80, 0, opacity) if mini else (255, 20, 20, opacity)
+        # Borders use a transparent full-frame layer so alpha blends correctly.
+        layer = pygame.Surface(p.surface.get_size(), pygame.SRCALPHA)
+        pygame.draw.rect(layer, color, layer.get_rect(), max(1, round(width * p.scale)))
+        p.surface.blit(layer, (0, 0))
+    if int(t * 4) % 2 == 0:
+        p.text(
+            game.med_font if mini else game.wave_font,
+            "MINI-BOSS" if mini else "!! WARNING !!",
+            (255, 160, 0) if mini else (255, 30, 30),
+            (p.width // 2, p.height // 2 - 20),
+            anchor="center",
+        )
+    if not mini:
+        p.text(game.game_font, "BOSS INCOMING!", (255, 120, 120), (p.width // 2, p.height // 2 + 40), anchor="center")
+
+
+def _draw_wave_banner(p, game):
+    if game._wave_banner_timer <= 0:
+        return
+    alpha = 255 if game._wave_banner_timer >= 0.5 else int(255 * game._wave_banner_timer / 0.5)
+    if game.wave % 5 == 0:
+        title, color, subtitle = f"BOSS WAVE  {game.wave}!", (255, 55, 55), "Defeat the boss!"
+    elif game.wave % 5 == 3 and game.wave >= 3:
+        title, color, subtitle = f"WAVE  {game.wave}  —  MINI-BOSS", (255, 160, 0), "A raider is coming!"
+    else:
+        title, color, subtitle = f"WAVE  {game.wave}", (255, 215, 50), "New aliens incoming!"
+    bounds = p.text(game.wave_font, title, color, (p.width // 2, p.height // 3), anchor="center", alpha=alpha)
+    p.text(game.game_font, subtitle, (200, 200, 200), (p.width // 2, bounds.bottom + 4), anchor="midtop", alpha=alpha)
 
 
 def draw_loading(game: Game) -> None:

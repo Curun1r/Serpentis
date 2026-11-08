@@ -23,6 +23,7 @@ def test_defaults_when_no_file():
     assert s.fullscreen is False
     assert s.resolution == (s.native_resolution if s.auto_resolution else RESOLUTIONS[s.resolution_index])
     assert s.fps == FRAMERATES[s.fps_index]
+    assert s.fill_screen is True
 
 
 def test_get_returns_singleton():

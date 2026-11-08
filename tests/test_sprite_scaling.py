@@ -37,7 +37,7 @@ def test_sprite_sizes_and_hitboxes_survive_display_and_aspect_changes(gameplay, 
         game._canvas.fill((0, 0, 0))
         for i, sprite in enumerate(objects):
             assert sprite.rect.size == sprite.image.get_size() == baseline[i]
-            game._canvas.blit(sprite.image, (100 + i * 120, 240))
+            game._painter.blit(sprite.image, (100 + i * 120, 240))
         game._present()
         view = game._viewport
         assert pygame.Rect((0, 0), size).contains(view)

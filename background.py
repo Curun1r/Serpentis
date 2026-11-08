@@ -115,3 +115,24 @@ class StarBackground:
                     canvas.set_at((ix + 2, iy), dim)
                     canvas.set_at((ix, iy - 2), dim)
                     canvas.set_at((ix, iy + 2), dim)
+
+    def draw_scaled(self, painter) -> None:
+        """Draw stars and nebula geometry in the HD framebuffer."""
+        painter.surface.fill((5, 5, 16))
+        for x, y, color, radius, _ in self._nebulae:
+            r, g, b, alpha = color
+            for step in range(4, 0, -1):
+                fraction = step / 4
+                painter.circle((r, g, b, int(alpha * fraction * fraction)),
+                               (x, y), int(radius * fraction))
+        for x, y, layer, size, brightness in self._stars:
+            twinkle = max(0, min(255, int(brightness + 20 * math.sin(self._t * 3 + x * .05))))
+            color = (twinkle, twinkle, min(255, twinkle + 25))
+            if size == 1:
+                painter.pixel((x, y), color)
+            else:
+                painter.circle(color, (x, y), size)
+                if layer == 2 and twinkle > 180:
+                    dim = (twinkle // 3,) * 3
+                    for dx, dy in ((-2, 0), (2, 0), (0, -2), (0, 2)):
+                        painter.pixel((x + dx, y + dy), dim)

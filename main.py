@@ -37,8 +37,8 @@ def _smoke_test(game):
     rendered = []
     for name, screen in [('menu', game._start_screen), ('hangar', game._ship_screen),
                          ('settings', game._settings), ('controls', game._controls)]:
-        game.background.draw(game._canvas)
-        screen.draw(game._canvas, game)
+        game._menu_background.draw(game._menu_canvas)
+        screen.draw(game._menu_canvas, game._menu_context)
         rendered.append(name)
     game._draw_loading()
     rendered.append('loading')
@@ -58,7 +58,8 @@ def _smoke_test(game):
         game._draw()
         game._present()
     rendered.append('gameplay')
-    game._pause.draw(game._canvas, game)
+    game.state = GameState.PAUSED
+    game._advance_frame(0)
     rendered.append('pause')
     Settings.get().save()
     ScoreManager.add_entry(1, game.wave, game._selected_ship.name)
@@ -66,12 +67,13 @@ def _smoke_test(game):
     if best != 1 or len(game.score_entries) != 1:
         raise RuntimeError('Save-data check failed')
     game.game_score = 1
-    game._gameover.draw(game._canvas, game)
+    game._gameover.draw(game._menu_canvas, game._menu_context)
     rendered.append('results')
     game._leaderboard.draw(game._menu_canvas, game._menu_context)
     rendered.append('leaderboard')
     return {'ok': True, 'application': APP_NAME, 'version': APP_VERSION,
-            'screens': rendered, 'save_data': 'passed', 'sprite_sizes': sprite_sizes}
+            'screens': rendered, 'save_data': 'passed', 'sprite_sizes': sprite_sizes,
+            'render_size': list(game._canvas.get_size())}
 
 
 def _run(smoke):
