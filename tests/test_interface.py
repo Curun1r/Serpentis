@@ -92,6 +92,7 @@ def test_right_mouse_button_does_not_activate_menu(gameplay):
 def test_mouse_mapping_accounts_for_letterboxing_and_ignores_bars(gameplay, size):
     game = gameplay
     game._viewport = fit_viewport(size)
+    game._disp_w, game._disp_h = size
     view = game._viewport
     assert game._lpos(view.center) == pytest.approx((640, 360), abs=1)
     assert game._lpos(view.topleft) == (0, 0)
@@ -102,6 +103,7 @@ def test_mouse_mapping_accounts_for_letterboxing_and_ignores_bars(gameplay, size
 
 def test_letterbox_click_does_not_shoot(gameplay):
     gameplay._viewport = fit_viewport((1024, 768))
+    gameplay._disp_w, gameplay._disp_h = (1024, 768)
     gameplay._handle_event(pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=(512, 10)))
     assert len(gameplay.balls) == 0
 
@@ -160,6 +162,7 @@ def test_auto_display_follows_monitor_change_once(gameplay, monkeypatch):
 def test_present_keeps_bars_black_during_camera_shake(gameplay, monkeypatch):
     game = gameplay
     game.screen = pygame.Surface((1024, 768))
+    game._disp_w, game._disp_h = game.screen.get_size()
     game._viewport = fit_viewport(game.screen.get_size())
     game._canvas.fill((255, 255, 255))
     game._shake_ox, game._shake_oy = 10, -10

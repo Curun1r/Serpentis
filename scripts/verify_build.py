@@ -9,7 +9,7 @@ import tempfile
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app_info import APP_NAME, APP_VERSION
 
-EXPECTED_SCREENS = {'menu', 'hangar', 'settings', 'controls', 'loading', 'gameplay', 'pause', 'results'}
+EXPECTED_SCREENS = {'menu', 'hangar', 'settings', 'controls', 'loading', 'gameplay', 'pause', 'results', 'leaderboard'}
 
 
 class BuildVerificationError(RuntimeError):
@@ -25,7 +25,7 @@ def validate_report(report: dict) -> dict:
     screens = report.get('screens')
     if (not isinstance(screens, list) or not all(isinstance(screen, str) for screen in screens)
             or len(screens) != len(EXPECTED_SCREENS) or set(screens) != EXPECTED_SCREENS):
-        raise BuildVerificationError('Startup report did not cover all eight game screens')
+        raise BuildVerificationError('Startup report did not cover all nine game screens')
     if report.get('save_data') != 'passed':
         raise BuildVerificationError('Startup report did not verify persistent save data')
     return report

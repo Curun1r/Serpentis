@@ -8,22 +8,23 @@ from ui_theme import (TEXT, MUTED, DIM, CYAN, PURPLE, BORDER, MenuFocus,
 
 
 class StartScreen:
-    """Return play/settings/controls/quit actions for mouse or keyboard input."""
+    """Return play/settings/controls/leaderboard/quit actions for mouse or keyboard input."""
 
     def __init__(self, fonts: dict):
         self.fonts = fonts
         self.game_font = fonts['game']
         self.small_font = fonts['small']
         self.wave_font = fonts['wave']
-        self._focus = MenuFocus(('play', 'settings', 'controls', 'quit'))
+        self._focus = MenuFocus(('play', 'settings', 'controls', 'leaderboard', 'quit'))
         self.update_layout(1280, 720)
 
     def update_layout(self, sw: int, sh: int):
         left = sw // 2 - 560
-        self.play_rect = pygame.Rect(left, 302, 368, 58)
-        self.settings_rect = pygame.Rect(left, 374, 368, 48)
-        self.controls_rect = pygame.Rect(left, 434, 368, 48)
-        self.quit_rect = pygame.Rect(left, 494, 368, 48)
+        self.play_rect = pygame.Rect(left, 302, 368, 54)
+        self.settings_rect = pygame.Rect(left, 368, 368, 44)
+        self.controls_rect = pygame.Rect(left, 424, 368, 44)
+        self.leaderboard_rect = pygame.Rect(left, 480, 368, 44)
+        self.quit_rect = pygame.Rect(left, 536, 368, 44)
         self._records_rect = pygame.Rect(sw // 2 - 90, 140, 650, 352)
         self._fleet_rect = pygame.Rect(sw // 2 - 90, 526, 650, 110)
 
@@ -41,6 +42,7 @@ class StartScreen:
             (self.play_rect, 'PLAY', True, False),
             (self.settings_rect, 'SETTINGS', False, False),
             (self.controls_rect, 'HOW TO PLAY', False, False),
+            (self.leaderboard_rect, 'LEADERBOARD', False, False),
             (self.quit_rect, 'QUIT', False, True),
         ]
         for index, (rect, label, primary, danger) in enumerate(actions):
@@ -70,8 +72,8 @@ class StartScreen:
 
     def handle_click(self, lpos: tuple, game) -> str | None:
         for index, (rect, action) in enumerate(zip(
-                (self.play_rect, self.settings_rect, self.controls_rect, self.quit_rect),
-                ('play', 'settings', 'controls', 'quit'))):
+                (self.play_rect, self.settings_rect, self.controls_rect, self.leaderboard_rect, self.quit_rect),
+                ('play', 'settings', 'controls', 'leaderboard', 'quit'))):
             if rect.collidepoint(lpos):
                 self._focus.select(index)
                 game.ui_click_sound.play()

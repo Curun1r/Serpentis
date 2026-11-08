@@ -64,6 +64,8 @@ def _smoke_test(game):
     game.game_score = 1
     game._gameover.draw(game._canvas, game)
     rendered.append('results')
+    game._leaderboard.draw(game._menu_canvas, game._menu_context)
+    rendered.append('leaderboard')
     return {'ok': True, 'application': APP_NAME, 'version': APP_VERSION,
             'screens': rendered, 'save_data': 'passed'}
 

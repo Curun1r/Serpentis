@@ -66,3 +66,11 @@ def choose_window_size(native_size: tuple[int, int]) -> tuple[int, int]:
     """Leave room for window borders, the menu bar and the Dock/taskbar."""
     width, height = native_size
     return max(1, width - 80), max(1, height - 120)
+
+
+def game_canvas_size(aspect_ratio: str, native_size: tuple[int, int]) -> tuple[int, int]:
+    """Change the playfield width, never stretch sprites to imitate a ratio."""
+    ratios = {'16:9': 16 / 9, '16:10': 16 / 10, '4:3': 4 / 3, '21:9': 21 / 9}
+    ratio = native_size[0] / native_size[1] if aspect_ratio == 'auto' else ratios.get(aspect_ratio, 16 / 9)
+    # Keep the HUD usable on portrait displays while supporting up to 32:9.
+    return max(960, min(2560, round(720 * ratio))), 720

@@ -28,7 +28,9 @@ from screens.game_over  import GameOverScreen
 from screens.settings   import SettingsScreen
 from screens.pause      import PauseOverlay
 from screens.controls   import ControlsScreen
-from display_layout import current_display_index, get_native_resolution, choose_window_size, fit_viewport, remember_display
+from screens.leaderboard import LeaderboardScreen
+from frame_timing import FrameLimiter
+from display_layout import current_display_index, get_native_resolution, choose_window_size, fit_viewport, remember_display, game_canvas_size
 from ui_theme import MUTED
 
 
@@ -42,11 +44,25 @@ class GameState(Enum):
     GAME_OVER   = "game_over"
     SETTINGS    = "settings"
     CONTROLS    = "controls"
+    LEADERBOARD = "leaderboard"
 
 
-# Fixed logical game-world resolution — all sprites and physics live in this space.
-# The canvas is scaled up to the real display size so higher resolutions look crisp.
+# Menus retain their design size. Gameplay uses the chosen ratio at height 720.
 _LOGICAL_W, _LOGICAL_H = 1280, 720
+
+
+class MenuContext:
+    """Keep menu layouts at 1280x720 while delegating run state to the game."""
+    screen_width, screen_height = _LOGICAL_W, _LOGICAL_H
+
+    def __init__(self, game):
+        object.__setattr__(self, '_game', game)
+
+    def __getattr__(self, name):
+        return getattr(self._game, name)
+
+    def __setattr__(self, name, value):
+        setattr(self._game, name, value)
 
 
 class Game:
@@ -73,7 +89,7 @@ class Game:
         self.med_font   = fonts['med']
         self.small_font = fonts['small']
         self.wave_font  = fonts['wave']
-        self.clock = pygame.time.Clock()
+        self._frame_limiter = FrameLimiter()
 
         # ── Sounds ────────────────────────────────────────────────────────
         # Shoot: laser chirp (900 Hz → 120 Hz, 0.13 s)
@@ -121,6 +137,11 @@ class Game:
         self._settings      = SettingsScreen(fonts)
         self._pause         = PauseOverlay(fonts)
         self._controls      = ControlsScreen(fonts)
+        self._leaderboard   = LeaderboardScreen(fonts)
+        self._leaderboard_return = GameState.START
+        self._menu_context  = MenuContext(self)
+        self._menu_canvas   = pygame.Surface((_LOGICAL_W, _LOGICAL_H))
+        self._menu_background = StarBackground(_LOGICAL_W, _LOGICAL_H)
         self._update_screen_layouts()
 
         # ── Canvas & particles ────────────────────────────────────────────
@@ -149,7 +170,7 @@ class Game:
 
     def _update_screen_layouts(self):
         """Notify all screens of the current logical dimensions."""
-        sw, sh = self.screen_width, self.screen_height
+        sw, sh = _LOGICAL_W, _LOGICAL_H
         self._start_screen.update_layout(sw, sh)
         self._gameover.update_layout(sw, sh)
 
@@ -176,7 +197,7 @@ class Game:
         else:
             size = s.resolution
         flags = pygame.SCALED | (pygame.FULLSCREEN if s.fullscreen else 0)
-        self.screen = pygame.display.set_mode(size, flags, display=self._display_index)
+        self.screen = pygame.display.set_mode(size, flags, display=self._display_index, vsync=0)
         self._disp_w, self._disp_h = self.screen.get_size()
         self._viewport = fit_viewport((self._disp_w, self._disp_h))
 
@@ -185,16 +206,21 @@ class Game:
         self._open_display(display_index)
         self._update_screen_layouts()
 
-    def _present(self):
-        """Letterbox the logical canvas, including camera shake, inside the display."""
+    @property
+    def current_fps(self):
+        return self._frame_limiter.fps
+
+    def _present(self, frame=None):
+        """Render the active canvas at its true ratio, with clipped camera shake."""
+        frame = self._canvas if frame is None else frame
+        self._viewport = fit_viewport((self._disp_w, self._disp_h), frame.get_size())
         view = self._viewport
-        scaled = (self._canvas if view.size == self._canvas.get_size() else
-                  pygame.transform.smoothscale(self._canvas, view.size))
+        scaled = frame if view.size == frame.get_size() else pygame.transform.smoothscale(frame, view.size)
         self.screen.fill((0, 0, 0))
         previous_clip = self.screen.get_clip()
         self.screen.set_clip(view)
-        self.screen.blit(scaled, (view.x + round(self._shake_ox * view.w / _LOGICAL_W),
-                                  view.y + round(self._shake_oy * view.h / _LOGICAL_H)))
+        self.screen.blit(scaled, (view.x + round(self._shake_ox * view.w / frame.get_width()),
+                                  view.y + round(self._shake_oy * view.h / frame.get_height())))
         self.screen.set_clip(previous_clip)
         pygame.display.update()
 
@@ -212,15 +238,17 @@ class Game:
         self._fade_dir   = 1    # fade out first
 
     # ------------------------------------------------------------------
-    # Coordinate helpers (display-space → logical 1280×720)
+    # Coordinate helpers (display-space → active logical canvas)
     # ------------------------------------------------------------------
 
     def _lpos(self, pos: tuple[int, int]) -> tuple[int, int]:
-        view = self._viewport
+        world = self.state in (GameState.PLAYING, GameState.DYING, GameState.PAUSED)
+        size = self._canvas.get_size() if world else (_LOGICAL_W, _LOGICAL_H)
+        view = fit_viewport((self._disp_w, self._disp_h), size)
         if not view.collidepoint(pos):
             return (-1, -1)
-        return (int((pos[0] - view.x) * _LOGICAL_W / view.w),
-                int((pos[1] - view.y) * _LOGICAL_H / view.h))
+        return (int((pos[0] - view.x) * size[0] / view.w),
+                int((pos[1] - view.y) * size[1] / view.h))
 
     def _lmouse(self) -> tuple[int, int]:
         return self._lpos(pygame.mouse.get_pos())
@@ -231,6 +259,13 @@ class Game:
 
     def _init_game(self):
         """Reset all gameplay state for a new round."""
+        self._run_aspect = Settings.get().aspect_ratio
+        size = game_canvas_size(self._run_aspect, self._native_mode)
+        self.screen_width, self.screen_height = size
+        config.SCREEN_WIDTH, config.SCREEN_HEIGHT = size
+        self._canvas = pygame.Surface(size)
+        self.background = StarBackground(*size)
+        self._run_elapsed = 0.0
         self.game_score         = 0
         self.lives              = Settings.get().starting_lives
         self.flash_timer        = 0
@@ -302,29 +337,26 @@ class Game:
 
     def run(self):
         while True:
-            dt = self.clock.tick(Settings.get().fps) / 1000.0
+            dt = min(self._frame_limiter.tick(Settings.get().fps), 0.1)
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     sys.exit()
                 self._handle_event(event)
 
-            # Menu screens get a fresh background each frame;
-            # gameplay states manage their own canvas via _draw().
+            world = self.state in (GameState.PLAYING, GameState.PAUSED, GameState.DYING)
+            frame = self._canvas if world else self._menu_canvas
             self.background.update(dt)
-            if self.state not in (GameState.PLAYING, GameState.PAUSED):
-                self.background.draw(self._canvas)
+            self._menu_background.update(dt)
+            if not world:
+                self._menu_background.draw(frame)
                 self._shake_ox = self._shake_oy = 0
 
-            if   self.state == GameState.LOADING:
+            if self.state == GameState.LOADING:
                 self._loading_timer -= dt
                 self._draw_loading()
                 if self._loading_timer <= 0:
                     self.state = GameState.START
-            elif self.state == GameState.START:
-                self._start_screen.draw(self._canvas, self)
-            elif self.state == GameState.SHIP_SELECT:
-                self._ship_screen.draw(self._canvas, self)
             elif self.state == GameState.PLAYING:
                 self._update(dt)
                 self._draw()
@@ -333,13 +365,11 @@ class Game:
                 self._draw()
             elif self.state == GameState.PAUSED:
                 self._draw()
-                self._pause.draw(self._canvas, self)
-            elif self.state == GameState.GAME_OVER:
-                self._gameover.draw(self._canvas, self)
-            elif self.state == GameState.SETTINGS:
-                self._settings.draw(self._canvas, self)
-            elif self.state == GameState.CONTROLS:
-                self._controls.draw(self._canvas, self)
+                self._pause.draw(frame, self)
+            else:
+                screen = self._menu_screen()
+                if screen:
+                    screen.draw(frame, self._menu_context)
 
             # ── Fade overlay ──────────────────────────────────────────
             self._fade_alpha += self._fade_dir * self._fade_speed * dt
@@ -354,12 +384,12 @@ class Game:
                 self._fade_alpha = max(0.0, self._fade_alpha)
 
             if self._fade_alpha > 1:
-                fade_surf = pygame.Surface((_LOGICAL_W, _LOGICAL_H))
+                fade_surf = pygame.Surface(frame.get_size())
                 fade_surf.fill((0, 0, 0))
                 fade_surf.set_alpha(int(self._fade_alpha))
-                self._canvas.blit(fade_surf, (0, 0))
+                frame.blit(fade_surf, (0, 0))
 
-            self._present()
+            self._present(frame)
 
     # ------------------------------------------------------------------
     # Event handling
@@ -370,6 +400,14 @@ class Game:
             return
         if action == 'quit':
             sys.exit()
+        if action == 'leaderboard':
+            self._leaderboard_return = self.state
+            self._leaderboard.page = 0
+            self._fade_to(GameState.LEADERBOARD)
+            return
+        if self.state == GameState.LEADERBOARD and action == 'back':
+            self._fade_to(self._leaderboard_return)
+            return
         if self.state == GameState.START:
             target = {'play': GameState.SHIP_SELECT, 'settings': GameState.SETTINGS,
                       'controls': GameState.CONTROLS}.get(action)
@@ -403,9 +441,13 @@ class Game:
     def _menu_screen(self):
         return {GameState.START: self._start_screen, GameState.SHIP_SELECT: self._ship_screen,
                 GameState.SETTINGS: self._settings, GameState.CONTROLS: self._controls,
-                GameState.PAUSED: self._pause, GameState.GAME_OVER: self._gameover}.get(self.state)
+                GameState.PAUSED: self._pause, GameState.GAME_OVER: self._gameover,
+                GameState.LEADERBOARD: self._leaderboard}.get(self.state)
 
     def _handle_event(self, event):
+        if event.type == pygame.MOUSEWHEEL and self.state == GameState.LEADERBOARD:
+            self._leaderboard.handle_wheel(event, self._menu_context)
+            return
         if event.type == pygame.WINDOWDISPLAYCHANGED:
             index = getattr(event, 'display_index', current_display_index())
             index = max(0, min(index, pygame.display.get_num_displays() - 1))
@@ -415,6 +457,7 @@ class Game:
                 self._apply_resolution(index)
             else:
                 self._display_index = index
+                self._native_mode = get_native_resolution(index)
             return
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_F11:
@@ -437,7 +480,7 @@ class Game:
             else:
                 screen = self._menu_screen()
                 if screen:
-                    self._handle_screen_action(screen.handle_key(event.key, self))
+                    self._handle_screen_action(screen.handle_key(event.key, self if self.state == GameState.PAUSED else self._menu_context))
 
         if event.type == pygame.KEYUP and self.state in (GameState.PLAYING, GameState.PAUSED):
             if event.key in (pygame.K_LEFT, pygame.K_a): self.fighter.is_moving_left = False
@@ -454,12 +497,12 @@ class Game:
             else:
                 screen = self._menu_screen()
                 if screen:
-                    self._handle_screen_action(screen.handle_click(pos, self))
+                    self._handle_screen_action(screen.handle_click(pos, self if self.state == GameState.PAUSED else self._menu_context))
 
         if event.type == pygame.MOUSEMOTION:
             pos = self._lpos(event.pos)
             if pos != (-1, -1):
-                if self.state == GameState.SETTINGS: self._settings.handle_motion(pos, self)
+                if self.state == GameState.SETTINGS: self._settings.handle_motion(pos, self._menu_context)
                 elif self.state == GameState.PAUSED: self._pause.handle_motion(pos, self)
 
         if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
@@ -519,6 +562,7 @@ class Game:
     def _update(self, dt):
         if self.state != GameState.PLAYING:
             return
+        self._run_elapsed += dt
         if self._wave_banner_timer > 0: self._wave_banner_timer -= dt
         if self._triple_shot_timer > 0: self._triple_shot_timer -= dt
         if self._slow_time_timer   > 0: self._slow_time_timer   -= dt
@@ -773,7 +817,7 @@ class Game:
             self._death_timer = 1.8
             self.score_entries = ScoreManager.add_entry(
                 self.game_score, self.wave, self._selected_ship.name,
-                Settings.get().difficulty)
+                Settings.get().difficulty, duration=self._run_elapsed, aspect_ratio=self._run_aspect)
             self.best_score = max(self.best_score, self.game_score)
 
     def _spawn_particles(self, cx: int, cy: int, count: int = 12, colors=None):
@@ -994,6 +1038,11 @@ class Game:
             self._fade_to(GameState.GAME_OVER)
 
     def _draw_hud(self, surface: pygame.Surface):
+        if Settings.get().show_fps:
+            cap = Settings.get().fps
+            limit = str(cap) if cap else 'Unlimited'
+            label = self.small_font.render(f'{self.current_fps:.0f} FPS / {limit}', True, MUTED)
+            surface.blit(label, (20, surface.get_height() - label.get_height() - 12))
         self._draw_boss_hp_bar(surface)
         self._draw_mini_boss_hp_bar(surface)
         self._draw_powerup_hud(surface)
@@ -1143,7 +1192,7 @@ class Game:
 
     def _draw_loading(self):
         """Splash screen shown for ~2.5 s on startup."""
-        cv = self._canvas
+        cv = self._menu_canvas
         cx = _LOGICAL_W // 2
         cy = _LOGICAL_H // 2
         t  = pygame.time.get_ticks() / 1000.0

@@ -34,7 +34,7 @@ def test_full_startup_check_outside_project_preserves_player_data(tmp_path):
     assert data['ok'] is True
     assert data['save_data'] == 'passed'
     assert set(data['screens']) == {'menu', 'hangar', 'settings', 'controls',
-                                    'loading', 'gameplay', 'pause', 'results'}
+                                    'loading', 'gameplay', 'pause', 'results', 'leaderboard'}
     assert scores.read_text() == '{"best_score": 1000}'
     assert not (protected / 'settings.json').exists()
     assert not (tmp_path / 'data').exists()

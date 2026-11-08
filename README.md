@@ -1,6 +1,6 @@
 # Serpentis
 
-**Current release:** [Serpentis 1.8.1](https://github.com/Curun1r/Serpentis/releases/tag/serpentis_1.8.1)
+**Current release:** [Serpentis 1.9.0](https://github.com/Curun1r/Serpentis/releases/tag/serpentis_1.9.0)
 
 A fast-paced 2-D space shooter built with Python and pygame.  
 Destroy waves of alien invaders, survive boss encounters, collect power-ups, and chase the high score.
@@ -26,7 +26,7 @@ Or browse all releases → **[github.com/Curun1r/Serpentis/releases](https://git
 
 ## Screenshots
 
-Screenshots show the current source version; downloadable builds remain at the latest release.
+Screenshots show Serpentis 1.9.0. Leaderboard examples use demonstration runs.
 
 <table>
   <tr>
@@ -50,16 +50,24 @@ Screenshots show the current source version; downloadable builds remain at the l
     <td><img src="screenshots/settings.png" alt="Settings" width="400"/></td>
   </tr>
   <tr>
-    <td align="center"><em>Game Over & Leaderboard</em></td>
+    <td align="center"><em>Run Summary</em></td>
     <td align="center"><em>Settings</em></td>
   </tr>
   <tr>
+    <td><img src="screenshots/leaderboard.png" alt="Expanded Leaderboard" width="400"/></td>
     <td><img src="screenshots/controls.png" alt="How to Play" width="400"/></td>
-    <td><img src="screenshots/pause.png" alt="Pause Menu" width="400"/></td>
   </tr>
   <tr>
+    <td align="center"><em>Personal Records</em></td>
     <td align="center"><em>How to Play</em></td>
+  </tr>
+  <tr>
+    <td><img src="screenshots/pause.png" alt="Pause Menu" width="400"/></td>
+    <td></td>
+  </tr>
+  <tr>
     <td align="center"><em>Pause Menu</em></td>
+    <td></td>
   </tr>
 </table>
 
@@ -77,11 +85,12 @@ Screenshots show the current source version; downloadable builds remain at the l
 - **Floating damage numbers** — real-time score and hit feedback above every enemy
 - **Visual effects** — particle explosions, engine trail, camera shake, shield ring, slow-time tint
 - **Procedural audio** — every sound generated at runtime via numpy (no audio files required)
-- **Top-5 leaderboard** — persisted to disk, shown on the game-over screen
-- **Settings** — volume, automatic or manual resolution, frame rate, difficulty, fullscreen
+- **Top-100 personal leaderboard** — filter by ship and difficulty, sort by score, wave or date, and browse eight runs per page; each run records its date, duration and game aspect ratio
+- **Settings** — volume, automatic or manual resolution, game aspect ratio, maximum FPS, live FPS counter, difficulty and fullscreen
 - **Keyboard-friendly menus** — shared focus states, readable panels, and an in-game How to Play guide
 - **Automatic Mac display mode** — follows the current monitor and respects macOS display scaling; manual resolution remains available
-- **Proportional display scaling** — a fixed 1280×720 game canvas with letterboxing on 4:3, ultrawide and Mac displays; mouse input follows the same viewport
+- **Selectable game aspect ratio** — Auto, 16:9, 16:10, 4:3 or 21:9 change the playfield width without stretching ships; menus retain their 1280×720 layout and mouse input follows the active viewport
+- **Precise frame pacing** — 30, 60, 120, 144 or 240 FPS caps and a No Limit option, with a measured frame counter
 
 ---
 
@@ -108,6 +117,12 @@ Screenshots show the current source version; downloadable builds remain at the l
 In menus, use `Up` / `Down` or `Tab` to navigate and `Enter` to select. Settings use `Left` / `Right` to adjust the focused row. In the hangar, use `Left` / `Right` to choose a ship and `Enter` to launch. Open **How to Play** from the main menu for controls and pickup descriptions.
 
 On macOS, **AUTO** resolution is enabled by default. Fullscreen uses the current monitor's desktop resolution; windowed mode leaves room for the system menu bar and Dock. The game adapts when moved to another monitor and keeps its proportions. Choose a fixed resolution in Settings to disable Auto.
+
+**Game aspect ratio** is separate from the window resolution. Choose **Auto**, **16:9**, **16:10**, **4:3** or **21:9** to set the playfield for your next flight. Auto uses the connected display's proportions, within the supported 4:3 to 32:9 range. The camera width changes while ships keep their proportions; any unused window area is letterboxed. The default remains 16:9. Aspect and difficulty changes take effect when you start or retry a flight.
+
+**Maximum FPS** applies immediately: choose **30**, **60**, **120**, **144**, **240** or **No Limit** (`0` as the frame cap). The live counter reports measured rendering FPS in Settings and during play. A cap is a maximum, so demanding scenes or slower hardware can run below it. Rendering FPS and monitor refresh rate are different: a 60 Hz monitor cannot display 144 distinct frames each second.
+
+Open **Leaderboard** from the main menu or **All Records** after a flight. Filter by ship or difficulty, sort by score, highest wave or newest date, and use **Page Up / Page Down**, the mouse wheel or the page buttons to browse. Existing scores remain available; older runs without duration metadata show `--:--`.
 
 ---
 
@@ -164,7 +179,7 @@ Pipenv remains an optional alternative: `pipenv install` followed by `pipenv run
 
 ## Startup checks and releases
 
-A bounded check starts the real game with invisible SDL drivers, renders all eight screens,
+A bounded check starts the real game with invisible SDL drivers, renders all nine screens,
 loads bundled images, generates audio, and verifies settings and scores in disposable save data:
 
 ```bash
@@ -228,15 +243,16 @@ ship_sprites.py      — procedural ship sprite builder
 ui_fx.py             — glass panels, damage numbers, glow effects
 ui_theme.py          — shared menu colors, buttons, focus, and leaderboard
 display_layout.py    — monitor detection, automatic sizing, proportional viewport
-score_manager.py     — top-5 leaderboard (JSON)
-settings_manager.py  — volume, resolution, difficulty, fullscreen (JSON)
+frame_timing.py      — precise FPS limits and measured frame rate
+score_manager.py     — top-100 records, validation, filters and atomic JSON saves
+settings_manager.py  — display, aspect, FPS, sound and difficulty preferences (JSON)
 assets.py            — image / sound cache + procedural audio
 music.py             — procedural background music player
 background.py        — parallax star field
 config.py            — runtime constants (loaded from project config.json)
 paths.py             — source/bundled resources and persistent save locations
 scripts/             — built-executable verification and release checksums
-screens/             — start, ship select, game over, pause, settings, controls
+screens/             — main menu, hangar, results, leaderboard, pause, settings, controls
 tests/               — pytest suite for logic and headless gameplay regressions
 ```
 

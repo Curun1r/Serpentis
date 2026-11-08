@@ -1,6 +1,5 @@
 """Ship selection with explicit launch action and readable control hints."""
 import pygame
-import config
 from ship import SHIPS
 from ui_theme import CYAN, MUTED, DIM, BORDER, panel, text, button, heading, footer
 
@@ -15,7 +14,7 @@ class ShipSelectScreen:
 
     def _card_rects(self):
         total = len(SHIPS) * self.CARD_W + (len(SHIPS) - 1) * self.GAP
-        x = (config.SCREEN_WIDTH - total) // 2
+        x = (1280 - total) // 2
         return [pygame.Rect(x + i * (self.CARD_W + self.GAP), 158, self.CARD_W, self.CARD_H)
                 for i in range(len(SHIPS))]
 

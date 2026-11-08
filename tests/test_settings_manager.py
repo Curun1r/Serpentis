@@ -4,7 +4,7 @@ import json
 import pytest
 
 import settings_manager
-from settings_manager import DIFFICULTY_CONFIG, FRAMERATES, RESOLUTIONS, Settings
+from settings_manager import ASPECT_RATIOS, DIFFICULTY_CONFIG, FRAMERATES, RESOLUTIONS, Settings
 
 
 @pytest.fixture(autouse=True)
@@ -128,3 +128,84 @@ def test_auto_resolution_follows_monitor_changes(monkeypatch):
     assert settings.resolution == (3440, 1440)
     settings.save()
     assert Settings().auto_resolution is True
+
+
+@pytest.mark.parametrize('aspect', ASPECT_RATIOS)
+def test_aspect_ratio_roundtrip(aspect):
+    settings = Settings()
+    settings.aspect_ratio = aspect
+    settings.save()
+    assert Settings().aspect_ratio == aspect
+
+
+@pytest.mark.parametrize('aspect', ['invalid', None, ['16:9']])
+def test_unknown_aspect_uses_legacy_16_by_9(settings_file, aspect):
+    settings_file.write_text(json.dumps({'aspect_ratio': aspect}))
+    assert Settings().aspect_ratio == '16:9'
+
+
+def test_legacy_settings_preserve_fps_and_gain_safe_defaults(settings_file):
+    settings_file.write_text(json.dumps({'fps_index': 3, 'difficulty': 'hard',
+                                         'volume': .6, 'fullscreen': True}))
+    settings = Settings()
+    assert settings.fps == 144
+    assert settings.difficulty == 'hard'
+    assert settings.volume == .6
+    assert settings.fullscreen is True
+    assert settings.aspect_ratio == '16:9'
+    assert settings.show_fps is True
+
+
+@pytest.mark.parametrize('cap', [240, 0])
+def test_extended_fps_limits_roundtrip(cap):
+    settings = Settings()
+    settings.fps_index = FRAMERATES.index(cap)
+    settings.save()
+    assert Settings().fps == cap
+
+
+def test_fps_counter_preference_roundtrip():
+    settings = Settings()
+    settings.show_fps = False
+    settings.save()
+    assert Settings().show_fps is False
+
+
+@pytest.mark.parametrize('value', ['false', None, [], 0])
+def test_bad_fps_counter_value_keeps_safe_default(settings_file, value):
+    settings_file.write_text(json.dumps({'show_fps': value}))
+    assert Settings().show_fps is True
+
+
+def test_non_object_settings_file_is_ignored(settings_file):
+    settings_file.write_text('[]')
+    settings = Settings()
+    assert settings.fps == 60
+    assert settings.aspect_ratio == '16:9'
+
+
+def test_aspect_selection_saves_and_requests_next_flight_update(gameplay):
+    import pygame
+    settings = Settings.get()
+    screen = gameplay._settings
+    screen.focus.select(screen._ROWS.index('aspect'))
+    assert screen.handle_key(pygame.K_RIGHT, gameplay) == 'aspect'
+    assert settings.aspect_ratio == '16:10'
+    assert Settings().aspect_ratio == '16:10'
+
+
+def test_clicking_extended_fps_option_changes_saved_cap(gameplay):
+    screen = gameplay._settings
+    rect = screen._layout(1280)['fps_rects'][FRAMERATES.index(240)]
+    assert screen.handle_click(rect.center, gameplay) is None
+    assert Settings.get().fps == 240
+    assert Settings().fps == 240
+
+
+def test_keyboard_toggles_fps_counter_and_persists(gameplay):
+    import pygame
+    screen = gameplay._settings
+    screen.focus.select(screen._ROWS.index('show_fps'))
+    assert screen.handle_key(pygame.K_RETURN, gameplay) is None
+    assert Settings.get().show_fps is False
+    assert Settings().show_fps is False

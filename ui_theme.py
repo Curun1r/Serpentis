@@ -43,13 +43,14 @@ def button(surface, rect, label, font, *, hover=False, focused=False, primary=Fa
 
 
 def heading(surface, fonts, kicker, title, subtitle):
-    text(surface, fonts['small'], kicker, (640, 34), CYAN, anchor='center')
-    text(surface, fonts['med'], title, (640, 76), TEXT, anchor='center')
-    text(surface, fonts['small'], subtitle, (640, 116), MUTED, anchor='center')
+    cx = surface.get_width() // 2
+    text(surface, fonts['small'], kicker, (cx, 34), CYAN, anchor='center')
+    text(surface, fonts['med'], title, (cx, 76), TEXT, anchor='center')
+    text(surface, fonts['small'], subtitle, (cx, 116), MUTED, anchor='center')
 
 
 def footer(surface, font, label):
-    text(surface, font, label, (640, 690), MUTED, anchor='center')
+    text(surface, font, label, (surface.get_width() // 2, surface.get_height() - 30), MUTED, anchor='center')
 
 
 class MenuFocus:

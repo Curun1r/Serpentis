@@ -13,13 +13,14 @@ class GameOverScreen:
         self.game_font = fonts['game']
         self.small_font = fonts['small']
         self.med_font = fonts['med']
-        self._focus = MenuFocus(('retry', 'menu'))
+        self._focus = MenuFocus(('retry', 'menu', 'leaderboard'))
         self.update_layout(1280, 720)
 
     def update_layout(self, sw: int, sh: int):
         cx = sw // 2
-        self.try_again_rect = pygame.Rect(cx - 240, 595, 270, 52)
-        self.menu_rect = pygame.Rect(cx + 46, 595, 194, 52)
+        self.try_again_rect = pygame.Rect(cx - 410, 595, 260, 52)
+        self.menu_rect = pygame.Rect(cx - 130, 595, 260, 52)
+        self.leaderboard_rect = pygame.Rect(cx + 150, 595, 260, 52)
         self._records_rect = pygame.Rect(cx - 410, 290, 820, 270)
         self._summary_rects = [pygame.Rect(cx - 410 + i * 280, 156, 260, 102)
                                for i in range(3)]
@@ -38,7 +39,7 @@ class GameOverScreen:
             text(canvas, self.small_font, label, (rect.centerx, rect.y + 23), MUTED, anchor='center')
             text(canvas, self.med_font, value, (rect.centerx, rect.y + 65), TEXT, anchor='center')
 
-        best_run = (game.game_score > 0 and game.score_entries
+        best_run = (game.game_score > 0 and game.game_score >= game.best_score and game.score_entries
                     and game.score_entries[0]['score'] == game.game_score
                     and game.score_entries[0].get('wave') == game.wave
                     and game.score_entries[0].get('ship') == game._selected_ship.name)
@@ -53,12 +54,15 @@ class GameOverScreen:
                hover=self.try_again_rect.collidepoint(mouse), focused=self._focus.active(0), primary=True)
         button(canvas, self.menu_rect, 'MAIN MENU', self.game_font,
                hover=self.menu_rect.collidepoint(mouse), focused=self._focus.active(1))
+        button(canvas, self.leaderboard_rect, 'ALL RECORDS', self.game_font,
+               hover=self.leaderboard_rect.collidepoint(mouse), focused=self._focus.active(2))
         footer(canvas, self.small_font,
                'UP / DOWN or TAB to navigate    ENTER to select    ESC for main menu')
 
     def handle_click(self, lpos: tuple, game) -> str | None:
         for index, (rect, action) in enumerate(((self.try_again_rect, 'retry'),
-                                                (self.menu_rect, 'menu'))):
+                                                (self.menu_rect, 'menu'),
+                                                (self.leaderboard_rect, 'leaderboard'))):
             if rect.collidepoint(lpos):
                 self._focus.select(index)
                 game.ui_click_sound.play()

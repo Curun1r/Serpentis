@@ -8,7 +8,8 @@ from paths import user_data_dir
 SETTINGS_FILE = os.path.join(user_data_dir(), 'settings.json')
 
 RESOLUTIONS  = [(1024, 768), (1280, 720), (1920, 1080), (2560, 1440)]
-FRAMERATES   = [30, 60, 120, 144]
+FRAMERATES   = [30, 60, 120, 144, 240, 0]  # zero means unlimited
+ASPECT_RATIOS = ('auto', '16:9', '16:10', '4:3', '21:9')
 
 DIFFICULTY_CONFIG = {
     #                speed   count  starting_lives  boss_hp_mult  shooter_interval_mult
@@ -31,6 +32,8 @@ class Settings:
         self.resolution_index: int = 2   # index into RESOLUTIONS  (default: 1920×1080)
         self.auto_resolution: bool = sys.platform == 'darwin'
         self.fps_index: int = 1          # index into FRAMERATES   (default: 60 fps)
+        self.aspect_ratio: str = '16:9'
+        self.show_fps: bool = True
         self.difficulty: str = 'normal'
         self.fullscreen: bool = False
         self.load()
@@ -48,6 +51,8 @@ class Settings:
         try:
             with open(SETTINGS_FILE) as f:
                 data = json.load(f)
+            if not isinstance(data, dict):
+                return
             self.volume = max(0.0, min(1.0, float(data.get('volume', 0.3))))
             ri = int(data.get('resolution_index', 0))
             self.resolution_index = ri if 0 <= ri < len(RESOLUTIONS) else 0
@@ -57,7 +62,11 @@ class Settings:
             self.fullscreen = bool(data.get('fullscreen', False))
             fi = int(data.get('fps_index', 1))
             self.fps_index = fi if 0 <= fi < len(FRAMERATES) else 1
-        except (json.JSONDecodeError, IOError, ValueError):
+            aspect = data.get('aspect_ratio', '16:9')
+            self.aspect_ratio = aspect if aspect in ASPECT_RATIOS else '16:9'
+            show_fps = data.get('show_fps', True)
+            self.show_fps = show_fps if isinstance(show_fps, bool) else True
+        except (json.JSONDecodeError, IOError, ValueError, TypeError):
             pass
 
     def save(self) -> None:
@@ -69,6 +78,8 @@ class Settings:
                 'resolution_index': self.resolution_index,
                 'auto_resolution': self.auto_resolution,
                 'fps_index': self.fps_index,
+                'aspect_ratio': self.aspect_ratio,
+                'show_fps': self.show_fps,
                 'difficulty': self.difficulty,
                 'fullscreen': self.fullscreen,
             }, f, indent=2)
