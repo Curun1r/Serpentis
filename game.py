@@ -168,7 +168,7 @@ class Game:
         self._leaderboard = LeaderboardScreen(fonts)
         self._leaderboard_return = GameState.START
         self._menu_context = MenuContext(self)
-        self._menu_canvas = pygame.Surface((_LOGICAL_W, _LOGICAL_H))
+        self._menu_canvas = pygame.Surface((_LOGICAL_W, _LOGICAL_H), pygame.SRCALPHA, 32)
         self._menu_background = StarBackground(_LOGICAL_W, _LOGICAL_H)
         self._update_screen_layouts()
 
@@ -232,7 +232,11 @@ class Game:
         if settings.auto_resolution:
             resolution = max(1920, resolution[0]), max(1080, resolution[1])
         logical_size = (self.screen_width, self.screen_height)
-        self._canvas = pygame.Surface(render_canvas_size(logical_size, resolution))
+        render_size = render_canvas_size(logical_size, resolution)
+        if (hasattr(self, '_painter') and self._canvas.get_size() == render_size
+                and (self._painter.width, self._painter.height) == logical_size):
+            return
+        self._canvas = pygame.Surface(render_size, pygame.SRCALPHA, 32)
         self._painter = WorldPainter(self._canvas, logical_size, self._font_sizes)
 
     @property
@@ -244,7 +248,18 @@ class Game:
         frame = self._canvas if frame is None else frame
         self._viewport = fit_viewport((self._disp_w, self._disp_h), frame.get_size(), Settings.get().fill_screen)
         view = self._viewport
-        scaled = frame if view.size == frame.get_size() else pygame.transform.smoothscale(frame, view.size)
+        # Present complete opaque frames and reuse the desktop-size scaling buffer.
+        # Matching pixel formats lets smoothscale write directly into this buffer.
+        presentation_format = (view.size, frame.get_bitsize(), frame.get_masks())
+        if getattr(self, '_presentation_format', None) != presentation_format:
+            self._presentation_canvas = pygame.Surface(view.size, depth=frame)
+            self._presentation_canvas.set_alpha(None)
+            self._presentation_format = presentation_format
+        scaled = self._presentation_canvas
+        if view.size == frame.get_size():
+            scaled.blit(frame, (0, 0))
+        else:
+            pygame.transform.smoothscale(frame, view.size, scaled)
         self.screen.fill((0, 0, 0))
         previous_clip = self.screen.get_clip()
         self.screen.set_clip(view)
@@ -433,10 +448,10 @@ class Game:
             self._fade_alpha = max(0.0, self._fade_alpha)
 
         if self._fade_alpha > 1:
-            fade_surf = pygame.Surface(frame.get_size())
-            fade_surf.fill((0, 0, 0))
-            fade_surf.set_alpha(int(self._fade_alpha))
-            frame.blit(fade_surf, (0, 0))
+            # Fade RGB uniformly, independent of a font/image surface's alpha
+            # flags. No per-frame full-screen alpha surface or alpha blit.
+            brightness = max(0, 255 - int(self._fade_alpha))
+            frame.fill((brightness,) * 3, special_flags=pygame.BLEND_RGB_MULT)
 
     # ------------------------------------------------------------------
     # Event handling
