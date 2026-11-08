@@ -244,7 +244,12 @@ cp config.example.json config.json
 main.py              — entry point, startup diagnostics and bounded smoke check
 launcher.py          — isolated source setup and launch for all platforms
 app_info.py          — shared application name, tagline, and release version
-game.py              — main loop, state machine, collision logic
+game.py              — application setup, screen transitions and frame coordination
+game_state.py        — shared screen-state enum without controller dependencies
+combat.py            — ordered gameplay updates, shooting, collisions and rewards
+rendering.py         — world layers, visual overlays and loading-screen drawing
+hud.py               — score, lives, cooldowns and boss/power-up indicators
+effects.py           — particles, engine trails, floating labels and camera shake
 fighter.py           — player ship (movement, dash)
 alien.py             — Alien, ArmoredAlien, ZigzagAlien, ShooterAlien
 boss.py              — Boss and MiniBoss with phase-based attacks
@@ -269,6 +274,17 @@ scripts/             — built-executable verification and release checksums
 screens/             — main menu, hangar, results, leaderboard, pause, settings, controls
 tests/               — pytest suite for logic and headless gameplay regressions
 ```
+
+`Game` owns the active run and coordinates its components. Its main loop processes
+events, advances the current screen, applies a fade, and presents the result.
+`combat.update()` names each simulation step and stops after lethal damage before
+collecting pickups or advancing a wave. `rendering` and `hud` read the run state;
+`VisualEffects` owns and resets temporary visual state for each new flight.
+
+Drawing does not advance the simulation. The controller advances flash/shake
+counters after painting the world, preserving the existing visual timing.
+Imports used only for type annotations stay behind `TYPE_CHECKING`, so these
+modules do not need to import the application controller at runtime.
 
 ---
 
