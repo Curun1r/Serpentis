@@ -102,6 +102,7 @@ Gameplay scenes and leaderboard entries use demonstration runs.
 - **Automatic Mac display mode** — follows the current monitor and respects macOS display scaling; manual resolution remains available
 - **Selectable game aspect ratio** — Auto, 16:9, 16:10, 4:3 or 21:9 set the playfield shape; Fill covers the display and Fit preserves proportions with bars, with matching mouse coordinates
 - **HD gameplay rendering** — world geometry and HUD fonts render directly at the selected resolution, starting at Full HD, independently of movement and collision coordinates; 16:10 starts at 1920×1200
+- **Efficient rendering** — precomposed nebulae, reusable pause artwork and narrow warning strips reduce alpha blending; the HD pixel-art world uses fast final scaling while menus retain smooth scaling
 - **Precise frame pacing** — 30, 60, 120, 144 or 240 FPS caps and a No Limit option, with a measured frame counter
 
 ---

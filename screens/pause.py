@@ -73,6 +73,19 @@ class PauseOverlay:
         footer(canvas, self.small_font,
                'UP / DOWN or TAB: focus     LEFT / RIGHT: volume     ENTER: select     ESC / P: resume')
 
+    def surface(self, game) -> pygame.Surface:
+        """Reuse pause artwork until its content, focus or hovered control changes."""
+        layout = self._layout(game.screen_width, game.screen_height)
+        mouse = game._lmouse()
+        hover = tuple(layout[f'{action}_rect'].collidepoint(mouse) for action in self._ACTIONS[1:])
+        key = (game.screen_width, game.screen_height, game.wave, game.game_score,
+               Settings.get().volume, self.focus.index, hover)
+        if key != getattr(self, '_surface_key', None):
+            self._surface = pygame.Surface((game.screen_width, game.screen_height), pygame.SRCALPHA)
+            self.draw(self._surface, game)
+            self._surface_key = key
+        return self._surface
+
     def handle_click(self, lpos: tuple, game) -> str | None:
         lay = self._layout(game.screen_width, game.screen_height)
         if lay['slider_hit'].collidepoint(lpos):

@@ -23,6 +23,7 @@ class WorldPainter:
         self._fonts = {font: pygame.font.Font(None, max(1, round(size * self.scale))) for font, size in fonts.items()}
         self._images = WeakKeyDictionary()
         self._labels = OrderedDict()
+        self._border_buffers = {}
 
     def point(self, point):
         return round(point[0] * self.scale), round(point[1] * self.scale)
@@ -41,6 +42,9 @@ class WorldPainter:
             scaled = self._images.get(image)
             if scaled is None:
                 scaled = pygame.transform.smoothscale(image, size)
+                opacity = scaled.get_alpha()
+                if opacity is not None:
+                    scaled.set_alpha(opacity, pygame.RLEACCEL)
                 self._images[image] = scaled
         if alpha != 255:
             scaled = scaled.copy()
@@ -110,6 +114,25 @@ class WorldPainter:
         return pygame.Rect(*(round(value / self.scale) for value in rect))
 
     def tint(self, color) -> None:
-        overlay = pygame.Surface(self.surface.get_size(), pygame.SRCALPHA)
-        overlay.fill(color)
-        self.surface.blit(overlay, (0, 0))
+        # A uniform tint needs only RGB operations, not a full-screen alpha blit.
+        opacity = max(0, min(255, color[3]))
+        if opacity:
+            self.surface.fill((255 - opacity,) * 3, special_flags=pygame.BLEND_RGB_MULT)
+            self.surface.fill(tuple(c * opacity // 255 for c in color[:3]), special_flags=pygame.BLEND_RGB_ADD)
+
+    def border(self, color, width) -> None:
+        """Blend a warning border using edge strips instead of a full-frame layer."""
+        w, h = self.surface.get_size()
+        thickness = min(max(1, round(width * self.scale)), min(w, h) // 2)
+        buffers = self._border_buffers.get(thickness)
+        if buffers is None:
+            buffers = (pygame.Surface((w, thickness), pygame.SRCALPHA),
+                       pygame.Surface((thickness, h - thickness * 2), pygame.SRCALPHA))
+            self._border_buffers[thickness] = buffers
+        horizontal, vertical = buffers
+        horizontal.fill(color)
+        vertical.fill(color)
+        self.surface.blit(horizontal, (0, 0))
+        self.surface.blit(horizontal, (0, h - thickness))
+        self.surface.blit(vertical, (0, thickness))
+        self.surface.blit(vertical, (w - thickness, thickness))

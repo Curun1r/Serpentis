@@ -70,10 +70,7 @@ def _draw_warning(p, game):
     alpha = int(60 + 50 * math.sin(t * 8))
     for width, opacity in zip((10, 4) if mini else (18, 8), (alpha, alpha // 2)):
         color = (255, 80, 0, opacity) if mini else (255, 20, 20, opacity)
-        # Borders use a transparent full-frame layer so alpha blends correctly.
-        layer = pygame.Surface(p.surface.get_size(), pygame.SRCALPHA)
-        pygame.draw.rect(layer, color, layer.get_rect(), max(1, round(width * p.scale)))
-        p.surface.blit(layer, (0, 0))
+        p.border(color, width)
     if int(t * 4) % 2 == 0:
         p.text(
             game.med_font if mini else game.wave_font,

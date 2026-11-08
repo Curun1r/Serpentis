@@ -35,6 +35,8 @@ class StarBackground:
         self._stars: list[list] = []   # [x, y, layer_idx, size, brightness]
         self._nebulae: list[list] = [] # [x, y, color, radius, dy]
         self._t = 0.0
+        self._cloud_images = {}
+        self._cloud_scale = None
 
         # Initialise stars spread across full height so they don't all
         # appear at the top at startup.
@@ -83,18 +85,7 @@ class StarBackground:
     def draw(self, canvas: pygame.Surface):
         canvas.fill((5, 5, 16))
 
-        # Nebulae (large, soft, drawn first so stars appear on top)
-        for neb in self._nebulae:
-            x, y, col, rad, _ = neb
-            r, g, b, a = col
-            # Soft blob via multiple transparent circles
-            for step in range(4, 0, -1):
-                frac  = step / 4
-                cur_r = int(rad * frac)
-                alpha = int(a * frac * frac)
-                blob  = pygame.Surface((cur_r * 2, cur_r * 2), pygame.SRCALPHA)
-                pygame.draw.circle(blob, (r, g, b, alpha), (cur_r, cur_r), cur_r)
-                canvas.blit(blob, (int(x) - cur_r, int(y) - cur_r))
+        self._draw_clouds(canvas, 1.0)
 
         # Stars
         for star in self._stars:
@@ -119,12 +110,7 @@ class StarBackground:
     def draw_scaled(self, painter) -> None:
         """Draw stars and nebula geometry in the HD framebuffer."""
         painter.surface.fill((5, 5, 16))
-        for x, y, color, radius, _ in self._nebulae:
-            r, g, b, alpha = color
-            for step in range(4, 0, -1):
-                fraction = step / 4
-                painter.circle((r, g, b, int(alpha * fraction * fraction)),
-                               (x, y), int(radius * fraction))
+        self._draw_clouds(painter.surface, painter.scale)
         for x, y, layer, size, brightness in self._stars:
             twinkle = max(0, min(255, int(brightness + 20 * math.sin(self._t * 3 + x * .05))))
             color = (twinkle, twinkle, min(255, twinkle + 25))
@@ -136,3 +122,29 @@ class StarBackground:
                     dim = (twinkle // 3,) * 3
                     for dx, dy in ((-2, 0), (2, 0), (0, -2), (0, 2)):
                         painter.pixel((x + dx, y + dy), dim)
+
+    def _draw_clouds(self, surface, scale):
+        # One precomposed image per cloud replaces four large alpha blits.
+        # Keep only the current resolution so monitor changes cannot grow memory.
+        if self._cloud_scale != scale:
+            self._cloud_images.clear()
+            self._cloud_scale = scale
+        for x, y, color, radius, _ in self._nebulae:
+            key = color, radius
+            image = self._cloud_images.get(key)
+            physical_radius = max(1, round(radius * scale))
+            if image is None:
+                size = physical_radius * 2 + 2
+                image = pygame.Surface((size, size), pygame.SRCALPHA)
+                center = physical_radius + 1
+                for step in range(4, 0, -1):
+                    fraction = step / 4
+                    ring_radius = max(1, round(int(radius * fraction) * scale))
+                    layer = pygame.Surface((ring_radius * 2 + 2,) * 2, pygame.SRCALPHA)
+                    pygame.draw.circle(layer, (*color[:3], int(color[3] * fraction * fraction)),
+                                       (ring_radius + 1,) * 2, ring_radius)
+                    image.blit(layer, (center - ring_radius - 1,) * 2)
+                image.set_alpha(255, pygame.RLEACCEL)
+                self._cloud_images[key] = image
+            surface.blit(image, (round(x * scale) - physical_radius - 1,
+                                 round(y * scale) - physical_radius - 1))

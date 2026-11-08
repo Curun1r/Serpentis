@@ -256,9 +256,11 @@ class Game:
             self._presentation_canvas.set_alpha(None)
             self._presentation_format = presentation_format
         scaled = self._presentation_canvas
-        # A transform also copies matching sizes without alpha-blending a new
-        # frame over pixels left in this buffer by the previous frame.
-        pygame.transform.smoothscale(frame, view.size, scaled)
+        # The HD world already has native fonts and scaled sprite artwork. A
+        # second full-frame filter is costly on macOS and softens pixel art.
+        # Menus keep their filtered scaling from the fixed design canvas.
+        scaler = pygame.transform.scale if frame is self._canvas else pygame.transform.smoothscale
+        scaler(frame, view.size, scaled)
         self.screen.fill((0, 0, 0))
         previous_clip = self.screen.get_clip()
         self.screen.set_clip(view)
@@ -424,9 +426,7 @@ class Game:
             self._draw()
         elif self.state == GameState.PAUSED:
             self._draw()
-            overlay = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
-            self._pause.draw(overlay, self)
-            self._painter.blit(overlay, (0, 0))
+            self._painter.blit(self._pause.surface(self), (0, 0))
         else:
             screen = self._menu_screen()
             if screen:
