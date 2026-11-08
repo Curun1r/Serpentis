@@ -26,7 +26,7 @@ Or browse all releases → **[github.com/Curun1r/Serpentis/releases](https://git
 
 ## Screenshots
 
-Screenshots show Serpentis 1.9.0. Leaderboard examples use demonstration runs.
+Gameplay and interface previews. Leaderboard examples use demonstration runs.
 
 <table>
   <tr>
