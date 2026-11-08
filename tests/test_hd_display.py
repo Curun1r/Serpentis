@@ -27,8 +27,8 @@ def test_fullscreen_always_uses_desktop_framebuffer_without_sdl_scaling(gameplay
     gameplay._apply_resolution()
     assert calls == [(native, pygame.FULLSCREEN)]
     assert gameplay.screen.get_size() == native
-    assert gameplay._canvas.get_width() >= 1920
-    assert gameplay._canvas.get_height() >= 1080
+    # The selected low render quality never shrinks the fullscreen window.
+    assert gameplay._canvas.get_size() == (1280, 720)
 
 
 @pytest.mark.parametrize("state", [GameState.PLAYING, GameState.PAUSED, GameState.START, GameState.SETTINGS])
@@ -84,7 +84,8 @@ def test_fill_preference_can_switch_back_to_fit_and_persists(gameplay):
 @pytest.mark.parametrize(
     ("world", "resolution", "render"),
     [
-        ((1280, 720), (1280, 720), (1920, 1080)),
+        ((1280, 720), (1280, 720), (1280, 720)),
+        ((1280, 720), (1920, 1080), (1920, 1080)),
         ((1152, 720), (1920, 1080), (1920, 1200)),
         ((960, 720), (1920, 1080), (1920, 1440)),
         ((1280, 720), (2560, 1440), (2560, 1440)),

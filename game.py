@@ -229,6 +229,8 @@ class Game:
     def _configure_render_target(self) -> None:
         settings = Settings.get()
         resolution = self._native_mode if settings.auto_resolution else settings.resolution
+        if settings.auto_resolution:
+            resolution = max(1920, resolution[0]), max(1080, resolution[1])
         logical_size = (self.screen_width, self.screen_height)
         self._canvas = pygame.Surface(render_canvas_size(logical_size, resolution))
         self._painter = WorldPainter(self._canvas, logical_size, self._font_sizes)

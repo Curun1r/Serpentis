@@ -29,7 +29,7 @@ def gameplay(pygame_context, tmp_path, monkeypatch):
     monkeypatch.setattr(settings_manager, 'SETTINGS_FILE', str(tmp_path / 'settings.json'))
     monkeypatch.setattr(score_manager, 'SCORES_FILE', str(tmp_path / 'scores.json'))
     monkeypatch.setattr(settings_manager.Settings, '_instance', None)
-    settings_manager.Settings.get().resolution_index = 1
+    settings_manager.Settings.get().resolution_index = 2
     settings_manager.Settings.get().auto_resolution = False
     # Legacy geometry regressions exercise FIT; fill behavior has separate cases.
     settings_manager.Settings.get().fill_screen = False

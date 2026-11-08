@@ -100,7 +100,7 @@ Gameplay and interface previews. Leaderboard examples use demonstration runs.
 - **Keyboard-friendly menus** — shared focus states, readable panels, and an in-game How to Play guide
 - **Automatic Mac display mode** — follows the current monitor and respects macOS display scaling; manual resolution remains available
 - **Selectable game aspect ratio** — Auto, 16:9, 16:10, 4:3 or 21:9 set the playfield shape; Fill covers the display and Fit preserves proportions with bars, with matching mouse coordinates
-- **HD gameplay rendering** — world geometry and HUD fonts render directly at Full HD or higher, independently of movement and collision coordinates; 16:10 starts at 1920×1200
+- **HD gameplay rendering** — world geometry and HUD fonts render directly at the selected resolution, starting at Full HD, independently of movement and collision coordinates; 16:10 starts at 1920×1200
 - **Precise frame pacing** — 30, 60, 120, 144 or 240 FPS caps and a No Limit option, with a measured frame counter
 
 ---
@@ -131,7 +131,7 @@ On macOS, **AUTO** resolution is enabled by default. Fullscreen uses the current
 
 **Game aspect ratio** is separate from the window resolution. Choose **Auto**, **16:9**, **16:10**, **4:3** or **21:9** to set the playfield for your next flight. Auto uses the connected display's proportions, within the supported 4:3 to 32:9 range. The camera width changes while object sizes in the game stay consistent. **Fill Screen** fills the entire window and may stretch the image when its ratio differs from the playfield; **Fit / Keep Ratio** preserves proportions with black bars. Fill is the default. New source installations on macOS prefer **16:10** when the connected display is closest to that format, including MacBook display modes. Other displays keep the 16:9 default, and existing saved choices take precedence. Aspect and difficulty changes take effect when you start or retry a flight.
 
-**Rendering resolution:** the game scene renders at least 1920×1080, or 1920×1200 for 16:10. Higher resolution selections increase that framebuffer, while Auto follows the current desktop mode with the same HD minimum. Windowed mode fits within the desktop; fullscreen covers the desktop even with a lower selected rendering resolution. Settings shows both the connected display size and the actual game render size. Menus retain their 1280×720 design canvas and scale for presentation.
+**Rendering resolution:** the game scene starts at Full HD: 1920×1080, or 1920×1200 for 16:10. Higher resolution selections increase that framebuffer. Auto follows the current desktop mode with the same HD minimum; explicit 720p/lower presets remain available to reduce rendering work. Windowed mode fits within the desktop; fullscreen covers the desktop even with a lower selected rendering resolution. Settings shows both the connected display size and the actual game render size. Menus retain their 1280×720 design canvas and scale for presentation.
 
 **Maximum FPS** applies immediately: choose **30**, **60**, **120**, **144**, **240** or **No Limit** (`0` as the frame cap). The live counter reports measured rendering FPS in Settings and during play. A cap is a maximum, so demanding scenes or slower hardware can run below it. Rendering FPS and monitor refresh rate are different: a 60 Hz monitor cannot display 144 distinct frames each second.
 

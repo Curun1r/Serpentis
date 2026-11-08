@@ -81,5 +81,5 @@ def game_canvas_size(aspect_ratio: str, native_size: tuple[int, int]) -> tuple[i
 def render_canvas_size(logical_size: tuple[int, int], resolution: tuple[int, int]) -> tuple[int, int]:
     """Cover the selected HD pixel budget while retaining the world's ratio."""
     width, height = logical_size
-    scale = max(1920 / width, 1080 / height, resolution[0] / width, resolution[1] / height)
+    scale = max(resolution[0] / width, resolution[1] / height)
     return round(width * scale), round(height * scale)

@@ -86,7 +86,7 @@ def _run(smoke):
             from settings_manager import Settings
             settings = Settings.get()
             settings.auto_resolution = False
-            settings.resolution_index = 1  # deterministic 1280x720 headless display
+            settings.resolution_index = 2  # deterministic Full HD gameplay renderer
             settings.fullscreen = False
         game = Game()
         if smoke:
