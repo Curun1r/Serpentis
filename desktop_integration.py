@@ -64,7 +64,11 @@ def install_desktop_entry() -> Path:
     icon = data_home / 'icons/hicolor/512x512/apps' / f'{APP_ID}.png'
     desktop = data_home / 'applications' / f'{APP_ID}.desktop'
     # Validate/escape every generated value before modifying the installation.
-    command = _exec_argument(executable)
+    # GLib checks argv[0] exists before expanding desktop field codes. A literal
+    # '%' in the app path is encoded as '%%', so use the stable env executable
+    # as argv[0] and expand the quoted application path only as its argument.
+    # env executes that absolute argument directly; no shell evaluates the path.
+    command = '/usr/bin/env -- ' + _exec_argument(executable)
     icon_value = _entry_string(str(icon))
     entry = ('[Desktop Entry]\nVersion=1.0\nType=Application\n'
              f'Name={APP_NAME}\nComment=A Python space shooter\n'

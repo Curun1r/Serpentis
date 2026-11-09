@@ -67,7 +67,10 @@ def test_install_copies_app_icon_and_menu_entry_without_changing_player_data(lin
     assert entry['Name'] == 'Serpentis'
     assert entry['Type'] == 'Application'
     assert entry['Terminal'] == 'false'
-    assert decode_exec_argument(entry['Exec']) == str(installed)
+    command, separator, argument = entry['Exec'].split(' ', 2)
+    assert command == '/usr/bin/env'
+    assert separator == '--'
+    assert decode_exec_argument(argument) == str(installed)
     assert entry['Icon'] == str(installed_icon).replace('\\', '\\\\')
     assert (saves / 'scores.json').read_text() == '{"best_score":100}'
     assert (saves / 'settings.json').read_text() == '{"volume":0.5}'
@@ -145,11 +148,15 @@ def test_menu_installation_cannot_be_combined_with_smoke_mode(monkeypatch):
 
 @pytest.mark.skipif(sys.platform != 'linux' or shutil.which('gio') is None,
                     reason='Desktop-entry launch verification uses Linux GIO when available')
-def test_real_desktop_parser_launches_literal_special_character_paths(linux_download, monkeypatch, tmp_path):
+@pytest.mark.parametrize('directory', ['normal', 'Application data', '$HOME', '100%', '"quoted"',
+                                     'back\\slash', '`ticks`', 'Корабель',
+                                     'Data $HOME 100% "quoted" back\\slash `ticks`'])
+def test_real_desktop_parser_launches_literal_special_character_paths(
+        linux_download, monkeypatch, tmp_path, directory):
     source, _, _ = linux_download
     launched = tmp_path / 'launched.txt'
     source.write_text('#!/bin/sh\nprintf launched > ' + shlex.quote(str(launched)) + '\n')
-    data = tmp_path / 'Data $HOME 100% "quoted" back\\slash `ticks`'
+    data = tmp_path / directory
     monkeypatch.setenv('XDG_DATA_HOME', str(data))
     entry = desktop.install_desktop_entry()
     result = subprocess.run(['gio', 'launch', str(entry)], capture_output=True, text=True, timeout=10)
