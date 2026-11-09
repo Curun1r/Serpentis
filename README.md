@@ -32,6 +32,17 @@ See [Apple's opening instructions](https://support.apple.com/en-us/102445).
 
 **Linux:** extract the archive, then `chmod +x Serpentis && ./Serpentis`.
 
+For an optional Linux application-menu entry with the Serpentis icon, run
+`./Serpentis --install-desktop` from the extracted standalone download. This copies
+the game and icon into your per-user XDG data folder (normally `~/.local/share`)
+without administrator privileges or a separate Python installation. Run the command
+again from a new download to update that installed copy. The archive's `README.txt`
+also explains removal while preserving your scores and settings.
+
+The running game uses its own window icon on supported desktop environments.
+On macOS, use the packaged `Serpentis.app` for its Finder/Dock identity; a game
+started through PyCharm can still appear under the Python application's identity.
+
 ---
 
 ## Screenshots
@@ -234,6 +245,27 @@ Desktop builds use **Python 3.12** and the complete pinned build toolchain:
 The platform build commands live in `.github/workflows/release.yml`; the Mac app recipe
 is `packaging/serpentis-macos.spec`. Update dependency pins deliberately, then run the
 CI matrix and built-executable startup checks before publishing a release.
+
+### Application icons
+
+The app uses a large Serpent ship mark adapted to each desktop: a dark rounded tile
+with transparent outer margins for macOS, and a transparent ship for Windows/Linux.
+Small icons use simplified artwork. The Mac ICNS contains standard/Retina representations
+through 1024 px; the Windows ICO includes 16–256 px sizes, and the runtime/Linux PNG is 512 px.
+
+![Platform icon previews](packaging/icons/preview.png)
+
+The scalable drawing and all export rules live in `scripts/build_icons.py`.
+With the pinned build dependencies installed, regenerate or verify the assets:
+
+```bash
+.venv/bin/python scripts/build_icons.py --preview packaging/icons/preview.png
+.venv/bin/python scripts/build_icons.py --check
+```
+
+Release builds validate these exports before packaging. Updating the source icon takes
+effect in a newly built app; an installed app uses its bundled artwork. macOS may retain
+an older Dock icon: close the previous app and add the new app bundle to the Dock again.
 
 ## Startup checks and releases
 

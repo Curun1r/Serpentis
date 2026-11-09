@@ -61,6 +61,7 @@ jobs:
         run: |
           python -m pip install -r requirements-build.txt
           python -m pip check
+          python scripts/build_icons.py --check
 
       # macOS: build a versioned app bundle and preserve its symlinks in the ZIP.
       - name: Build (macOS)
@@ -71,12 +72,11 @@ jobs:
           python scripts/verify_build.py dist/Serpentis.app/Contents/MacOS/Serpentis
           cd dist && zip -r -y "../${{ matrix.artifact }}" Serpentis.app
 
-      # Windows needs a .ico — convert the tracked Serpentis icon on the fly.
+      # The Windows artwork has its own transparent, multi-size ICO export.
       - name: Build (Windows)
         if: matrix.platform == 'Windows'
         shell: bash
         run: |
-          python -c "from PIL import Image; Image.open('serpentis.icns').save('serpentis.ico', sizes=[(16, 16), (32, 32), (48, 48), (256, 256)])"
           pyinstaller --onefile --windowed --name Serpentis \
             --icon serpentis.ico --add-data "image;image" main.py
           python scripts/verify_build.py dist/Serpentis.exe
@@ -91,7 +91,12 @@ jobs:
             --add-data "image:image" main.py
           chmod +x dist/Serpentis
           python scripts/verify_build.py dist/Serpentis
-          tar -czf "${{ matrix.artifact }}" -C dist Serpentis
+          python scripts/verify_linux_desktop.py dist/Serpentis
+          mkdir -p dist/linux-release
+          cp dist/Serpentis dist/linux-release/Serpentis
+          cp image/serpentis-icon.png dist/linux-release/serpentis.png
+          cp packaging/linux-README.txt dist/linux-release/README.txt
+          tar -czf "${{ matrix.artifact }}" -C dist/linux-release .
 
       - uses: actions/upload-artifact@v4
         with:

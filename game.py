@@ -28,6 +28,7 @@ from fighter import Fighter
 from frame_timing import FrameLimiter
 from game_state import GameState
 from music import MusicPlayer
+from paths import resource_path
 from score_manager import ScoreManager
 from screens.controls import ControlsScreen
 from screens.game_over import GameOverScreen
@@ -69,6 +70,13 @@ class Game:
 
     def __init__(self) -> None:
         pygame.display.set_caption(GAME_CAPTION)
+        # Set the running-window icon before opening the first SDL window.
+        icon = pygame.image.load(resource_path('image/serpentis-icon.png'))
+        self._window_icon = pygame.transform.smoothscale(icon, (128, 128))
+        # Cocoa applies SDL window icons to NSApp too. Preserve the Mac bundle's
+        # platform-specific ICNS instead of replacing its Dock artwork at runtime.
+        if not (sys.platform == 'darwin' and getattr(sys, 'frozen', False)):
+            pygame.display.set_icon(self._window_icon)
 
         self.screen_width = _LOGICAL_W
         self.screen_height = _LOGICAL_H

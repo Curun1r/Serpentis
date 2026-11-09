@@ -141,9 +141,24 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=f'{APP_NAME} space shooter')
     parser.add_argument('--smoke-test', action='store_true', help='Check startup without opening a visible window')
     parser.add_argument('--smoke-report', type=Path, help='Write the startup-check result as JSON')
+    parser.add_argument('--install-desktop', action='store_true',
+                        help='Install the standalone Linux app and icon in your application menu')
     args = parser.parse_args(argv)
     if args.smoke_report and not args.smoke_test:
         parser.error('--smoke-report requires --smoke-test')
+    if args.install_desktop:
+        if args.smoke_test or args.smoke_report:
+            parser.error('--install-desktop cannot be combined with startup checks')
+        from desktop_integration import DesktopInstallError, install_desktop_entry
+        try:
+            installed = install_desktop_entry()
+        except (DesktopInstallError, OSError) as error:
+            if sys.stderr is not None:
+                print(f'Could not install the application-menu entry: {error}', file=sys.stderr)
+            return 1
+        if sys.stdout is not None:
+            print(f'Installed {APP_NAME} in your application menu: {installed}')
+        return 0
     previous_env = {key: os.environ.get(key) for key in (
         'SDL_VIDEODRIVER', 'SDL_AUDIODRIVER', 'SDL_RENDER_DRIVER', 'SERPENTIS_DATA_DIR')}
     context = tempfile.TemporaryDirectory(prefix='serpentis-smoke-') if args.smoke_test else nullcontext()
