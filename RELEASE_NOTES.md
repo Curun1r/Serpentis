@@ -1,42 +1,38 @@
-# Serpentis 1.11.0
+# Serpentis 1.11.1
 
-Fairer hit recovery, fewer disk writes during combat, and the FPS optimizations from the latest source updates are now included in the desktop downloads.
+A refreshed Serpent ship icon, with separate artwork and exports for each desktop platform.
 
-## Hit recovery
+## Application icons
 
-- Taking a hit grants **0.7 seconds of protection** against projectiles and direct enemy contact, including bosses and mini-bosses.
-- A visible recovery indicator shows when protection is active. Its duration uses game time, remains consistent across FPS settings and freezes while paused.
-- Breaking a shield also grants recovery time, so overlapping projectiles cannot immediately consume a life in the same frame.
-- Recovery resets for each new flight. Enemies that escape still cost a life; recovery protects against physical hits rather than missed enemies.
+- Replaces the old small ship and SPACE SHOOTER lettering with a large, recognizable Serpent mark.
+- **macOS:** dark rounded artwork with transparent outer margins; standard and Retina ICNS representations from 16 to 1024 pixels. The packaged app preserves its native icon while running.
+- **Windows:** a transparent multi-size ICO with 16, 20, 24, 32, 40, 48, 64, 128 and 256 pixel representations, including simplified small-size artwork.
+- **Linux and running windows:** a bundled 512-pixel transparent PNG. The game sets its window icon before opening the display on supported platforms.
+- Icon exports are reproducible with `scripts/build_icons.py` and validated during desktop builds.
 
-## Record saving
+## Optional Linux application-menu entry
 
-- The HUD updates a new best score immediately in memory; every defeated enemy no longer triggers a synchronous file write.
-- Pending best scores are saved at wave transitions, pause, restart/menu, normal exit and the end of a flight.
-- Completed flights still produce one leaderboard entry, with atomic file replacement and compatible existing scores.
-- A forced process termination or power loss can discard an unsaved improvement from the current wave. Normal exits flush pending progress.
+After extracting the Linux download, run:
 
-## Performance included in the desktop builds
+```bash
+chmod +x Serpentis
+./Serpentis --install-desktop
+```
 
-- Nebula layers are precomposed and reused instead of repeatedly blending dozens of large transparent images.
-- Warning effects draw narrow edge strips; pause artwork and scaled sprites are cached.
-- Uniform screen tints use direct RGB operations. The HD pixel-art world uses fast final scaling, while menus retain smooth scaling.
-- Rendering resolution, fullscreen coverage, playfield proportions and collision geometry remain independent.
+This installs the game, icon and application-menu entry into the current user's XDG data folder without administrator privileges or a separate Python installation. Scores and settings are preserved. Re-running the command from a new download updates the installed copy. The archive includes installation and removal instructions.
 
-## Reproducible setup
-
-- Runtime, development and build dependency versions are pinned, including compatible Python-version markers.
-- CI and desktop builds use the same dependency files documented for local development.
-- README includes installation, test, lint and release-build commands. Source environment checks verify the required package versions and work offline after setup.
+Paths containing spaces, Cyrillic and reserved characters are covered by real Linux desktop-parser tests. The packaged Linux binary also verifies installation and reinstallation before publication.
 
 ## Downloads
 
-No Python installation is required for these desktop downloads. Each packaged executable must pass its startup check before publication.
+No Python installation is required.
 
-- **Windows:** `Serpentis-Windows.exe` — download and run.
-- **macOS:** `Serpentis-macOS.zip` — extract and move `Serpentis.app` to **Applications**. Follow the first-launch instructions below.
-- **Linux:** `Serpentis-Linux.tar.gz` — extract, then run `chmod +x Serpentis && ./Serpentis`.
+- **Windows:** `Serpentis-Windows.exe`
+- **macOS:** `Serpentis-macOS.zip` — extract and move `Serpentis.app` to **Applications**.
+- **Linux:** `Serpentis-Linux.tar.gz` — extract, then launch `./Serpentis` or use the menu-installation command above.
 - **Checksums:** `SHA256SUMS.txt`
+
+Close the previous app before replacing it. If macOS retains an older Dock icon, add the updated app bundle to the Dock again. Source runs through PyCharm may retain the Python application's identity.
 
 ### macOS: allow the first launch
 
@@ -48,4 +44,4 @@ The Mac build is not signed with an Apple Developer ID or notarized by Apple. Fo
 
 macOS remembers the exception for this copy of the app. See [Apple's instructions](https://support.apple.com/en-us/102445).
 
-Existing scores and settings remain compatible. Includes Raider, Hunter and Warden mini-boss encounters from 1.10.0.
+Existing scores and settings remain compatible. Includes all 1.11.0 hit-recovery, checkpoint-saving and FPS improvements. This release changes icons and desktop integration; signing and operating-system trust behavior are unchanged.

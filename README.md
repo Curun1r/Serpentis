@@ -1,6 +1,6 @@
 # Serpentis
 
-**Current release:** [Serpentis 1.11.0](https://github.com/Curun1r/Serpentis/releases/tag/serpentis_1.11.0)
+**Current release:** [Serpentis 1.11.1](https://github.com/Curun1r/Serpentis/releases/tag/serpentis_1.11.1)
 
 A fast-paced 2-D space shooter built with Python and pygame.  
 Destroy waves of alien invaders, survive boss encounters, collect power-ups, and chase the high score.
@@ -47,7 +47,7 @@ started through PyCharm can still appear under the Python application's identity
 
 ## Screenshots
 
-Previews rendered from version 1.11.0 with the current sprite scales and 16:10 display mode.
+Previews rendered from version 1.11.1 with the current sprite scales and 16:10 display mode.
 Gameplay scenes and leaderboard entries use demonstration runs.
 
 <table>
