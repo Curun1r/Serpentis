@@ -11,6 +11,33 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 MIN_PYTHON = (3, 10)
 MARKER_NAME = '.serpentis-requirements.sha256'
 
+# Run inside the selected virtual environment, after setup if necessary.
+# packaging evaluates standard PEP 508 markers without consulting the network.
+_DEPENDENCY_PROBE = '''
+import sys
+from pathlib import Path
+from importlib.metadata import version
+
+try:
+    assert sys.prefix != sys.base_prefix, 'A virtual environment is required'
+    assert sys.version_info >= (3, 10), 'Python 3.10 or newer is required'
+    from packaging.requirements import Requirement
+    for line in (Path(sys.argv[1]) / 'requirements.txt').read_text().splitlines():
+        line = line.split('#', 1)[0].strip()
+        if not line:
+            continue
+        requirement = Requirement(line)
+        if requirement.marker and not requirement.marker.evaluate():
+            continue
+        installed = version(requirement.name)
+        if not requirement.specifier.contains(installed, prereleases=True):
+            raise RuntimeError(f'Required {requirement}; installed {installed}')
+    import pygame
+    import numpy
+except Exception as error:
+    raise SystemExit(str(error))
+'''
+
 
 class LauncherError(Exception):
     """A setup problem that should be shown without a Python traceback."""
@@ -32,7 +59,7 @@ def child_environment() -> dict:
 def dependencies_import(python: Path, root: Path) -> bool:
     # A child process also catches broken native extension installations.
     result = subprocess.run(
-        [str(python), '-c', 'import sys; assert sys.prefix != sys.base_prefix and sys.version_info >= (3, 10); import pygame, numpy'],
+        [str(python), '-c', _DEPENDENCY_PROBE, str(root)],
         cwd=root, env=child_environment(), capture_output=True, text=True,
     )
     return result.returncode == 0
@@ -60,7 +87,7 @@ def prepare_environment(root: Path, check_only: bool = False) -> Path:
     if recorded == digest and usable:
         return python
     if check_only:
-        raise LauncherError('Dependencies need setup or repair. Run the launcher with --setup.')
+        raise LauncherError('Dependencies are missing or have different versions. Run the launcher with --setup.')
 
     print('Preparing Serpentis dependencies...', flush=True)
     result = subprocess.run(

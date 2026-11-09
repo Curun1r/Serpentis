@@ -117,7 +117,8 @@ class ScoreManager:
 
     @staticmethod
     def add_entry(score: int, wave: int, ship: str, difficulty: str = 'normal',
-                  duration: float = 0.0, aspect_ratio: str = '16:9') -> list[dict]:
+                  duration: float = 0.0, aspect_ratio: str = '16:9', *,
+                  best_score: int | None = None) -> list[dict]:
         """Record one completed run, retaining the top 100 and any higher saved best."""
         now = datetime.now().astimezone()
         entry = _entry({'score': score, 'wave': wave, 'ship': ship,
@@ -126,11 +127,14 @@ class ScoreManager:
                         'duration': duration, 'aspect_ratio': aspect_ratio})
         if entry is None:
             raise ValueError('A result requires a nonnegative score/wave and a ship name')
+        pending_best = entry['score'] if best_score is None else _nonnegative_int(best_score)
+        if pending_best is None:
+            raise ValueError('Best score must be a nonnegative integer')
         best, entries = ScoreManager.load()
         entries.append(entry)
         entries.sort(key=lambda value: value['score'], reverse=True)
         entries = entries[:MAX_ENTRIES]
-        ScoreManager._write(max(best, entry['score']), entries)
+        ScoreManager._write(max(best, pending_best, entry['score']), entries)
         return entries
 
     @staticmethod

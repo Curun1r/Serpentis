@@ -1,6 +1,8 @@
 """Source bootstrap behavior without creating environments or using the network."""
 import hashlib
+import importlib.metadata
 import subprocess
+import sys
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -191,3 +193,38 @@ def test_missing_requirements_does_not_create_environment(project):
     (project / 'requirements.txt').unlink()
     assert launcher.main(['--setup']) == 1
     assert not (project / '.venv').exists()
+
+
+@pytest.mark.parametrize('installed', ['2.6.0', '2.7.0'])
+def test_probe_rejects_importable_runtime_with_a_different_pinned_version(project, monkeypatch, installed):
+    (project / 'requirements.txt').write_text('pygame==2.6.1\n')
+    monkeypatch.setattr(sys, 'argv', ['probe', str(project)])
+    monkeypatch.setattr(sys, 'prefix', '/test/virtual-environment')
+    monkeypatch.setattr(importlib.metadata, 'version', lambda name: installed)
+    with pytest.raises(SystemExit, match=f'Required pygame==2.6.1; installed {installed}'):
+        exec(launcher._DEPENDENCY_PROBE, {})
+
+
+def test_probe_skips_inactive_python_and_platform_requirements(project, monkeypatch):
+    (project / 'requirements.txt').write_text(
+        '# Only matching markers are required\n'
+        'pygame==2.6.1\n'
+        'not-installed-package==1; python_version < "3.0"\n'
+        'also-not-installed==1; sys_platform == "unsupported-test-platform"\n')
+    monkeypatch.setattr(sys, 'argv', ['probe', str(project)])
+    monkeypatch.setattr(sys, 'prefix', '/test/virtual-environment')
+    lookup = Mock(return_value='2.6.1')
+    monkeypatch.setattr(importlib.metadata, 'version', lookup)
+    exec(launcher._DEPENDENCY_PROBE, {})
+    lookup.assert_called_once_with('pygame')
+
+
+def test_check_version_mismatch_keeps_existing_environment_and_requests_setup(project, monkeypatch, capsys):
+    python = prepared(project)
+    monkeypatch.setattr(launcher, 'dependencies_import', lambda *args: False)
+    install = Mock()
+    monkeypatch.setattr(launcher.subprocess, 'run', install)
+    assert launcher.main(['--check']) == 1
+    assert 'different versions' in capsys.readouterr().err
+    assert python.exists()
+    install.assert_not_called()

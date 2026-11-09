@@ -27,6 +27,9 @@ if TYPE_CHECKING:
     from game import Game
 
 
+DAMAGE_GRACE_SECONDS = 0.7
+
+
 def shoot(game: Game) -> None:
     ship = game._selected_ship
     if game._triple_shot_timer > 0:
@@ -87,6 +90,8 @@ def update(game: Game, dt: float) -> None:
 
 def _advance_timers(game: Game, dt: float) -> None:
     game._run_elapsed += dt
+    remaining = game._damage_grace_remaining - dt
+    game._damage_grace_remaining = remaining if remaining > 1e-9 else 0.0
     if game._wave_banner_timer > 0:
         game._wave_banner_timer -= dt
     if game._triple_shot_timer > 0:
@@ -164,9 +169,7 @@ def _resolve_alien_hits(game: Game) -> None:
                 game._effects.spawn_particles(cx, cy)
                 game._maybe_drop_powerup(cx, cy)
                 game.game_score += alien.SCORE
-                if game.game_score > game.best_score:
-                    game.best_score = game.game_score
-                    ScoreManager.save(game.best_score)
+                game.best_score = max(game.best_score, game.game_score)
                 game._effects.spawn_damage_number(cx, cy, f"+{alien.SCORE}", DamageNumber.COLOR_SCORE, scale=1.05)
             else:
                 game._effects.spawn_particles(cx, cy, count=5, colors=[(90, 140, 255), (160, 195, 255)])
@@ -178,10 +181,7 @@ def _resolve_projectile_hits(game: Game) -> None:
     for ab in list(game.alien_bullets):
         if ab.rect.colliderect(game.fighter.rect):
             ab.kill()
-            if game._shield_active:
-                break_shield(game)
-            else:
-                game._take_damage()
+            game._take_damage()
             if game.state != GameState.PLAYING:
                 return
 
@@ -192,8 +192,11 @@ def _resolve_alien_contacts(game: Game) -> None:
         off = alien.is_off_screen()
         if reached or off:
             alien.kill()
-            # Shield absorbs direct collision but NOT enemies that slip past
-            if reached and game._shield_active:
+            if off:
+                # Missing an enemy is a separate penalty: each escape still
+                # costs a life, even during physical-hit protection or a shield.
+                take_damage(game, escaped=True)
+            elif game._shield_active and game._damage_grace_remaining <= 0:
                 break_shield(game)
                 game._effects.spawn_particles(
                     alien.rect.centerx, alien.rect.centery, count=10, colors=[(70, 150, 255), (180, 220, 255)]
@@ -237,7 +240,8 @@ def update_boss(game: Game, dt: float) -> None:
                 )
                 game.hit_sound.play()
 
-    if game.boss and game.boss.rect.colliderect(game.fighter.rect):
+    if (game.boss and game.boss.rect.colliderect(game.fighter.rect)
+            and game._damage_grace_remaining <= 0):
         if game._shield_active:
             break_shield(game)
             # Shield rams the boss — deal damage to it
@@ -268,7 +272,8 @@ def update_mini_boss(game: Game, dt: float) -> None:
                 )
                 game.hit_sound.play()
 
-    if game.mini_boss and game.mini_boss.rect.colliderect(game.fighter.rect):
+    if (game.mini_boss and game.mini_boss.rect.colliderect(game.fighter.rect)
+            and game._damage_grace_remaining <= 0):
         if game._shield_active:
             break_shield(game)
             if game.mini_boss.take_hit(2):
@@ -295,9 +300,7 @@ def defeat_boss(game: Game, enemy: Boss | MiniBoss) -> None:
     )
     game._effects.spawn_particles(cx, cy, count=25 if mini else 40, colors=colors)
     game.game_score += enemy.SCORE
-    if game.game_score > game.best_score:
-        game.best_score = game.game_score
-        ScoreManager.save(game.best_score)
+    game.best_score = max(game.best_score, game.game_score)
     game._effects.spawn_damage_number(
         cx, cy, f"+{enemy.SCORE}", DamageNumber.COLOR_SCORE, scale=1.15 if mini else 1.3, lifetime=1.1 if mini else 1.2
     )
@@ -335,13 +338,21 @@ def apply_powerup(game: Game, pu: pygame.sprite.Sprite) -> None:
     game.powerup_sound.play()
 
 
-def take_damage(game: Game) -> None:
+def take_damage(game: Game, *, escaped: bool = False) -> None:
+    """Apply one life loss, or let a shield absorb one physical hit.
+
+    The grace window protects against contact/projectile chains. An escaped
+    enemy remains a separate missed-enemy penalty and bypasses both protections.
+    """
     if game.state != GameState.PLAYING:
         return
-    if game._shield_active:
+    if not escaped and game._damage_grace_remaining > 0:
+        return
+    if not escaped and game._shield_active:
         break_shield(game)
         return
     game.lives -= 1
+    game._damage_grace_remaining = DAMAGE_GRACE_SECONDS
     game.flash_timer = 20
     game._effects.shake_frames = 5
     game.lose_life_sound.play()
@@ -368,13 +379,16 @@ def take_damage(game: Game) -> None:
             Settings.get().difficulty,
             duration=game._run_elapsed,
             aspect_ratio=game._run_aspect,
+            best_score=game.best_score,
         )
         game.best_score = max(game.best_score, game.game_score)
+        game._saved_best_score = game.best_score
 
 
 def break_shield(game: Game) -> None:
-    """Deactivate shield, trigger flash/shake, and play the break sound."""
+    """Absorb a physical hit and allow time to escape the same collision."""
     game._shield_active = False
+    game._damage_grace_remaining = DAMAGE_GRACE_SECONDS
     game.flash_timer = 6
     game._effects.shake_frames = 2
     game.shield_break_sound.play()

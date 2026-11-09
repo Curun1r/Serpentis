@@ -1,6 +1,6 @@
 # Serpentis
 
-**Current release:** [Serpentis 1.10.0](https://github.com/Curun1r/Serpentis/releases/tag/serpentis_1.10.0)
+**Current release:** [Serpentis 1.11.0](https://github.com/Curun1r/Serpentis/releases/tag/serpentis_1.11.0)
 
 A fast-paced 2-D space shooter built with Python and pygame.  
 Destroy waves of alien invaders, survive boss encounters, collect power-ups, and chase the high score.
@@ -36,7 +36,7 @@ See [Apple's opening instructions](https://support.apple.com/en-us/102445).
 
 ## Screenshots
 
-Previews rendered from version 1.10.0 with the current sprite scales and 16:10 display mode.
+Previews rendered from version 1.11.0 with the current sprite scales and 16:10 display mode.
 Gameplay scenes and leaderboard entries use demonstration runs.
 
 <table>
@@ -92,6 +92,7 @@ Gameplay scenes and leaderboard entries use demonstration runs.
 - **Full boss fights** — every 5th wave; three visual tiers (Phantom → Ravager → Leviathan) each with unique multi-phase attack patterns
 - **3 playable ships** — each with unique procedurally-drawn sprites, stats, and dash timing; a cobalt Serpent interceptor, emerald Viper and armoured amber Hydra share a detailed fleet style with paired engine trails
 - **Dash mechanic** — short-range burst in any direction with a cooldown bar
+- **Hit recovery** — 0.7 seconds of protection after a physical hit or shield break, with a visible ship blink and timing independent of FPS
 - **4 power-ups** — Triple Shot, Shield (absorbs one hit + sound), Slow Time, Heart (+1 life)
 - **Floating damage numbers** — real-time score and hit feedback above every enemy
 - **Visual effects** — particle explosions, engine trail, camera shake, shield ring, slow-time tint
@@ -139,6 +140,15 @@ On macOS, **AUTO** resolution is enabled by default. Fullscreen uses the current
 
 Open **Leaderboard** from the main menu or **All Records** after a flight. Filter by ship or difficulty, sort by score, highest wave or newest date, and use **Page Up / Page Down**, the mouse wheel or the page buttons to browse. Existing scores remain available; older runs without duration metadata show `--:--`.
 
+After a physical hit or shield break, the ship blinks during **0.7 seconds of recovery**.
+Projectiles and direct contact cannot immediately remove another life during that window;
+pausing freezes the recovery timer. Each enemy that escapes still costs a life.
+
+The best-score display updates immediately during combat. Pending improvements are saved
+at wave transitions, pause, restart/menu, normal exit and the end of a flight, instead of
+writing to disk after every kill. Abandoned flights retain their best score without creating
+a completed-run entry. Force quitting before a checkpoint can lose an improvement from the current wave.
+
 ---
 
 ## Installation
@@ -175,6 +185,8 @@ On Windows, use `python` in place of `python3`, or run `run.bat --setup` / `run.
 The same options work with `run.command` and `run.sh`.
 After setup, the source launchers work offline while the dependency list remains unchanged.
 `--check` makes no changes and returns a nonzero exit code if setup or repair is needed.
+It validates the installed runtime versions as well as imports; `--setup` repairs a version
+mismatch in the existing environment without replacing the environment itself.
 
 **PyCharm:** open this folder, select `.venv/bin/python` on macOS/Linux or
 `.venv\Scripts\python.exe` on Windows as the project interpreter, and run `main.py`.
@@ -190,7 +202,38 @@ python3 -m venv .venv
 ```
 
 On Windows, use `.venv\Scripts\python.exe` for the last two commands.
-Pipenv remains an optional alternative: `pipenv install` followed by `pipenv run python main.py`.
+Pipenv remains an optional Python 3.12 alternative: `pipenv install` followed by
+`pipenv run python main.py`. Its `Pipfile` mirrors the runtime pins; the tracked
+`requirements*.txt` files are the canonical dependency lists used by CI and releases.
+
+## Development
+
+Install the pinned runtime and development tools into the project environment:
+
+```bash
+.venv/bin/python -m pip install -r requirements-dev.txt
+.venv/bin/python -m pip check
+.venv/bin/python -m pytest -q
+.venv/bin/python -m ruff check .
+```
+
+On Windows, replace `.venv/bin/python` with `.venv\Scripts\python.exe`.
+Tests use invisible display/audio drivers and disposable save folders, so they do not
+modify your scores or settings.
+
+`requirements.txt` pins the runtime packages. Python 3.10 uses NumPy 2.2.6;
+Python 3.11 and newer use the tested NumPy 2.4.6 branch. `requirements-dev.txt`
+also pins pytest, Ruff and their transitive dependencies with platform/Python markers.
+
+Desktop builds use **Python 3.12** and the complete pinned build toolchain:
+
+```bash
+.venv/bin/python -m pip install -r requirements-build.txt
+```
+
+The platform build commands live in `.github/workflows/release.yml`; the Mac app recipe
+is `packaging/serpentis-macos.spec`. Update dependency pins deliberately, then run the
+CI matrix and built-executable startup checks before publishing a release.
 
 ## Startup checks and releases
 

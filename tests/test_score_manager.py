@@ -61,6 +61,15 @@ def test_add_entry_updates_best_score():
     assert entries[0]['difficulty'] == 'hard'
 
 
+@pytest.mark.parametrize('pending_best', [-1, True, '120', float('inf')])
+def test_invalid_pending_best_does_not_change_saved_records(scores_file, pending_best):
+    ScoreManager.add_entry(40, wave=3, ship='Viper')
+    before = scores_file.read_bytes()
+    with pytest.raises(ValueError, match='Best score'):
+        ScoreManager.add_entry(20, wave=2, ship='Serpent', best_score=pending_best)
+    assert scores_file.read_bytes() == before
+
+
 def test_entry_contains_all_fields():
     ScoreManager.add_entry(42, wave=2, ship='viper')
     _, entries = ScoreManager.load()

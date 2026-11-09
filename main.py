@@ -117,7 +117,10 @@ def _run(smoke):
     finally:
         try:
             if game is not None:
-                game._music.close()
+                try:
+                    game._flush_best_score()
+                finally:
+                    game._music.close()
         finally:
             pygame.quit()
 

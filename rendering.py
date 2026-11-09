@@ -27,7 +27,12 @@ def draw_world(game: Game) -> None:
             p.sprite(enemy)
     game._effects.draw_engine_scaled(p)
     if game.state != GameState.DYING:
-        p.sprite(game.fighter)
+        # Use simulation time so protection feedback freezes with the pause.
+        # The painter copies translucent artwork; shared ship sprites stay intact.
+        if game._damage_grace_remaining > 0 and int(game._damage_grace_remaining * 12) % 2:
+            p.blit(game.fighter.image, game.fighter.rect.topleft, alpha=110)
+        else:
+            p.sprite(game.fighter)
     for group in (game.aliens, game.balls, game.alien_bullets, game.powerups, game.explosions):
         p.group(group)
     game._effects.draw_scaled(p)

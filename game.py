@@ -87,6 +87,7 @@ class Game:
 
         # ── Persistent state ──────────────────────────────────────────────
         self.best_score, self.score_entries = ScoreManager.load()
+        self._saved_best_score = self.best_score
         self._selected_ship: ShipConfig = SHIPS[0]
         self._ship_cursor: int = 0
 
@@ -311,6 +312,7 @@ class Game:
 
     def _init_game(self) -> None:
         """Reset all gameplay state for a new round."""
+        self._flush_best_score()
         self._run_aspect = Settings.get().aspect_ratio
         size = game_canvas_size(self._run_aspect, self._native_mode)
         self.screen_width, self.screen_height = size
@@ -320,6 +322,7 @@ class Game:
         self._run_elapsed = 0.0
         self.game_score = 0
         self.lives = Settings.get().starting_lives
+        self._damage_grace_remaining = 0.0
         self.flash_timer = 0
         self.wave = 0
         self.fighter = Fighter(ship=self._selected_ship)
@@ -341,6 +344,7 @@ class Game:
         self._start_wave(1)
 
     def _start_wave(self, wave_num: int, extra_delay: float = 0.0) -> None:
+        self._flush_best_score()
         self.wave = wave_num
         self.alien_bullets = pygame.sprite.Group()
         # Pickups remain collectible between waves; _init_game clears them on restart.
@@ -390,16 +394,26 @@ class Game:
 
     def run(self) -> None:
         """Process input, build a frame, apply its transition and present it."""
-        while True:
-            dt = min(self._frame_limiter.tick(Settings.get().fps), 0.1)
-            self._process_events()
-            frame = self._advance_frame(dt)
-            self._update_fade(dt, frame)
-            self._present(frame)
+        try:
+            while True:
+                dt = min(self._frame_limiter.tick(Settings.get().fps), 0.1)
+                self._process_events()
+                frame = self._advance_frame(dt)
+                self._update_fade(dt, frame)
+                self._present(frame)
+        finally:
+            self._flush_best_score()
+
+    def _flush_best_score(self) -> None:
+        """Persist accumulated best-score improvements only at safe checkpoints."""
+        if self.best_score > self._saved_best_score:
+            ScoreManager.save(self.best_score)
+            self._saved_best_score = self.best_score
 
     def _process_events(self) -> None:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
+                self._flush_best_score()
                 sys.exit()
             self._handle_event(event)
 
@@ -460,6 +474,7 @@ class Game:
         if not action or self._fade_next_state is not None:
             return
         if action == "quit":
+            self._flush_best_score()
             sys.exit()
         if action == "leaderboard":
             self._leaderboard_return = self.state
@@ -572,6 +587,7 @@ class Game:
                 self._pause.focus.select(1)
                 self.state = GameState.PAUSED
                 self._music.pause()
+                self._flush_best_score()
         else:
             screen = self._menu_screen()
             if screen:

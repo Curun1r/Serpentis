@@ -161,8 +161,8 @@ def test_last_enemy_drop_survives_wave_and_new_game_clears_it(gameplay, monkeypa
     assert len(game.powerups) == 0
 
 
-@pytest.mark.parametrize(('shield', 'expected_lives'), [(False, 1), (True, 2)])
-def test_nonlethal_hits_and_single_use_shield_keep_their_behavior(gameplay, shield, expected_lives):
+@pytest.mark.parametrize(('shield', 'expected_lives'), [(False, 2), (True, 3)])
+def test_nonlethal_chain_consumes_only_one_life_or_shield(gameplay, shield, expected_lives):
     game = gameplay
     game.lives = 3
     game._shield_active = shield

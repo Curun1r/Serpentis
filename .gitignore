@@ -39,5 +39,5 @@ config.json
 *.app
 icon.iconset/
 
-# Pipenv lock (optional — remove this line if you want reproducible installs)
+# Optional local Pipenv lock; tracked requirements*.txt are the canonical pins.
 Pipfile.lock
