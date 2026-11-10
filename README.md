@@ -1,6 +1,6 @@
 # Serpentis
 
-**Current release:** [Serpentis 1.11.1](https://github.com/Curun1r/Serpentis/releases/tag/serpentis_1.11.1)
+**Current release:** [Serpentis 2.0.0](https://github.com/Curun1r/Serpentis/releases/tag/serpentis_2.0.0)
 
 A fast-paced 2-D space shooter built with Python and pygame.  
 Destroy waves of alien invaders, survive boss encounters, collect power-ups, and chase the high score.
@@ -47,7 +47,7 @@ started through PyCharm can still appear under the Python application's identity
 
 ## Screenshots
 
-Previews rendered from version 1.11.1 with the current sprite scales and 16:10 display mode.
+Previews rendered from version 2.0.0 with the current sprite scales and 16:10 display mode.
 Gameplay scenes and leaderboard entries use demonstration runs.
 
 <table>
@@ -113,7 +113,7 @@ Gameplay scenes and leaderboard entries use demonstration runs.
 - **Top-100 personal leaderboard** — filter by ship and difficulty, sort by score, wave or date, and browse eight runs per page; each run records its date, duration and game aspect ratio
 - **Settings** — volume, automatic or manual resolution, game aspect ratio, Fill/Fit scaling, maximum FPS, live FPS counter, difficulty and fullscreen
 - **Keyboard-friendly menus** — shared focus states, readable panels, and an in-game How to Play guide
-- **Custom menu cursor** — a cyan and violet fleet pointer appears in menus and on pause, hides during combat, and returns when the flight is paused or ends.
+- **Custom menu cursor** — a compact interceptor pointer with pale edges and a blue canopy appears in menus and on pause, hides during combat, and returns when the flight is paused or ends.
 - **Automatic Mac display mode** — follows the current monitor and respects macOS display scaling; manual resolution remains available
 - **Selectable game aspect ratio** — Auto, 16:9, 16:10, 4:3 or 21:9 set the playfield shape; Fill covers the display and Fit preserves proportions with bars, with matching mouse coordinates
 - **HD gameplay rendering** — world geometry and HUD fonts render directly at the selected resolution, starting at Full HD, independently of movement and collision coordinates; 16:10 starts at 1920×1200
