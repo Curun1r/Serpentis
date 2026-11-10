@@ -20,7 +20,7 @@ def sprites(game):
 def test_sprite_sizes_and_hitboxes_survive_display_and_aspect_changes(gameplay, monkeypatch, aspect, display):
     game = gameplay
     baseline = [sprite.image.get_size() for sprite in sprites(game)]
-    assert baseline[0] == (44, 44)
+    assert baseline[0] == (35, 35)
     assert baseline[4] == (9, 9)
     Settings.get().aspect_ratio = aspect
     game._native_mode = (3456, 2234)

@@ -123,17 +123,17 @@ class Game:
         self._music.play_menu()
 
     def _load_fonts(self) -> dict[str, pygame.font.Font]:
-        fonts = {
-            "game": pygame.font.Font(None, 36),
-            "med": pygame.font.Font(None, 52),
-            "small": pygame.font.Font(None, 26),
-            "wave": pygame.font.Font(None, 86),
-        }
+        sizes = {'game': 36, 'med': 52, 'small': 26, 'wave': 86,
+                 'hud': 26, 'hud_small': 20, 'notice': 34}
+        fonts = {name: pygame.font.Font(None, size) for name, size in sizes.items()}
         self.game_font = fonts["game"]
         self.med_font = fonts["med"]
         self.small_font = fonts["small"]
         self.wave_font = fonts["wave"]
-        self._font_sizes = {fonts[name]: size for name, size in {'game': 36, 'med': 52, 'small': 26, 'wave': 86}.items()}
+        self.hud_font = fonts['hud']
+        self.hud_small_font = fonts['hud_small']
+        self.notice_font = fonts['notice']
+        self._font_sizes = {fonts[name]: size for name, size in sizes.items()}
 
         return fonts
 
@@ -158,7 +158,7 @@ class Game:
         self.background = StarBackground(_LOGICAL_W, _LOGICAL_H)
 
         raw_heart = Assets.get_image("image/heart.png")
-        self.heart_icon = pygame.transform.smoothscale(raw_heart, (22, 22))
+        self.heart_icon = pygame.transform.smoothscale(raw_heart, (14, 14))
 
         # Procedural ship preview sprites for the ship-select cards
         preview_height = 80
@@ -724,8 +724,8 @@ class Game:
     def _update_mini_boss(self, dt: float) -> None:
         combat.update_mini_boss(self, dt)
 
-    def _maybe_drop_powerup(self, cx: int, cy: int) -> None:
-        combat.maybe_drop_powerup(self, cx, cy)
+    def _maybe_drop_powerup(self, cx: int, cy: int, drop_chance: float) -> None:
+        combat.maybe_drop_powerup(self, cx, cy, drop_chance)
 
     def _take_damage(self) -> None:
         combat.take_damage(self)

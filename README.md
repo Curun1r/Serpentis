@@ -105,6 +105,8 @@ Gameplay scenes and leaderboard entries use demonstration runs.
 - **Dash mechanic** — short-range burst in any direction with a cooldown bar
 - **Hit recovery** — 0.7 seconds of protection after a physical hit or shield break, with a visible ship blink and timing independent of FPS
 - **4 power-ups** — Triple Shot, Shield (absorbs one hit + sound), Slow Time, Heart (+1 life)
+- **Enemy-specific bonus chances** — standard purple aliens drop a bonus 10% of the time; Armoured, Zigzag and Shooter enemies have a 25% chance. Bosses and mini-bosses drop a guaranteed Heart.
+- **Compact flight HUD** — a smaller score/wave/lives panel leaves more room for play; wave and boss announcements appear near the bottom, above the boss health bars.
 - **Floating damage numbers** — real-time score and hit feedback above every enemy
 - **Visual effects** — particle explosions, engine trail, camera shake, shield ring, slow-time tint
 - **Procedural audio** — every sound generated at runtime via numpy (no audio files required)

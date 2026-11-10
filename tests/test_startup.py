@@ -33,7 +33,7 @@ def test_full_startup_check_outside_project_preserves_player_data(tmp_path):
     data = json.loads(report.read_text())
     assert data['ok'] is True
     assert data['save_data'] == 'passed'
-    assert data['sprite_sizes'] == {'alien': [44, 44], 'player_projectile': [9, 9]}
+    assert data['sprite_sizes'] == {'alien': [35, 35], 'player_projectile': [9, 9]}
     assert data['mini_bosses'] == ['RAIDER', 'HUNTER', 'WARDEN']
     assert set(data['screens']) == {'menu', 'hangar', 'settings', 'controls',
                                     'loading', 'gameplay', 'pause', 'results', 'leaderboard'}

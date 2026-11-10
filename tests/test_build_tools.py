@@ -14,7 +14,7 @@ from scripts import checksums, verify_build
 def complete_report():
     return {'ok': True, 'application': APP_NAME, 'version': APP_VERSION,
             'screens': sorted(verify_build.EXPECTED_SCREENS), 'save_data': 'passed',
-            'sprite_sizes': {'alien': [44, 44], 'player_projectile': [9, 9]}, 'render_size': [1920, 1080],
+            'sprite_sizes': {'alien': [35, 35], 'player_projectile': [9, 9]}, 'render_size': [1920, 1080],
             'mini_bosses': ['RAIDER', 'HUNTER', 'WARDEN']}
 
 
@@ -64,6 +64,7 @@ def test_packaged_verifier_rejects_missing_or_invalid_json(executable, monkeypat
     ('screens', ['menu'] * 8), ('screens', None),
     ('sprite_sizes', None), ('sprite_sizes', {}),
     ('sprite_sizes', {'alien': [51, 51], 'player_projectile': [22, 22]}),
+    ('sprite_sizes', {'alien': [44, 44], 'player_projectile': [9, 9]}),
     ('render_size', None), ('render_size', [1280, 720]), ('render_size', [1920]),
     ('mini_bosses', None), ('mini_bosses', ['RAIDER']),
 ])

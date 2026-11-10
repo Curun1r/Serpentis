@@ -167,7 +167,7 @@ def _resolve_alien_hits(game: Game) -> None:
                 alien.kill()
                 game.explosions.add(Explosion(cx, cy))
                 game._effects.spawn_particles(cx, cy)
-                game._maybe_drop_powerup(cx, cy)
+                game._maybe_drop_powerup(cx, cy, alien.DROP_CHANCE)
                 game.game_score += alien.SCORE
                 game.best_score = max(game.best_score, game.game_score)
                 game._effects.spawn_damage_number(cx, cy, f"+{alien.SCORE}", DamageNumber.COLOR_SCORE, scale=1.05)
@@ -313,8 +313,9 @@ def defeat_boss(game: Game, enemy: Boss | MiniBoss) -> None:
     game._start_wave(game.wave + 1, extra_delay=1.5 if mini else 2.0)
 
 
-def maybe_drop_powerup(game: Game, cx: int, cy: int) -> None:
-    if random.random() > 0.25:
+def maybe_drop_powerup(game: Game, cx: int, cy: int, drop_chance: float) -> None:
+    """Roll the defeated enemy's drop chance, then select the bonus type."""
+    if random.random() >= drop_chance:
         return
     roll = random.random()
     if roll < 0.40:

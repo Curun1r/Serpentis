@@ -25,26 +25,26 @@ def draw_hud(p: WorldPainter, game: Game) -> None:
     _draw_boss_bars(p, game)
     _draw_powerups(p, game)
 
-    p.panel((10, 10, 310, 62), bg_color=(8, 8, 22), bg_alpha=200, border_color=(50, 50, 80), radius=10)
-    p.text(game.game_font, f"Score  {game.game_score}", (255, 255, 255), (20, 16), shadow=(0, 0, 0))
+    p.panel((10, 10, 264, 52), bg_color=(8, 8, 22), bg_alpha=200, border_color=(50, 50, 80), radius=8)
+    p.text(game.hud_font, f"Score  {game.game_score}", (255, 255, 255), (18, 16), shadow=(0, 0, 0))
     wave_color = (255, 80, 80) if game.wave % 5 == 0 else (255, 215, 50)
-    p.text(game.small_font, f"WAVE {game.wave}", wave_color, (20, 40), shadow=(0, 0, 0))
-    p.text(game.small_font, f"Best {game.best_score}", MUTED, (300, 40), anchor="topright", shadow=(0, 0, 0))
+    p.text(game.hud_small_font, f"WAVE {game.wave}", wave_color, (18, 39), shadow=(0, 0, 0))
+    p.text(game.hud_small_font, f"Best {game.best_score}", MUTED, (266, 39), anchor="topright", shadow=(0, 0, 0))
     for i in range(game.lives):
-        p.blit(game.heart_icon, (300 - game.lives * 26 + i * 26, 14))
+        p.blit(game.heart_icon, (266 - game.lives * 16 + i * 16, 16))
 
     ratio = game.fighter.dash_cooldown_ratio
     ready = ratio == 0
-    p.rect((30, 30, 45), (20, 78, 90, 6), border_radius=3)
-    fill_width = int(90 * (1 - ratio))
+    p.rect((30, 30, 45), (18, 68, 72, 4), border_radius=2)
+    fill_width = int(72 * (1 - ratio))
     if fill_width > 0:
-        p.rect((0, 220, 255) if ready else (0, 120, 160), (20, 78, fill_width, 6), border_radius=3)
-    p.rect((50, 50, 75), (20, 78, 90, 6), 1, border_radius=3)
+        p.rect((0, 220, 255) if ready else (0, 120, 160), (18, 68, fill_width, 4), border_radius=2)
+    p.rect((50, 50, 75), (18, 68, 72, 4), 1, border_radius=2)
     p.text(
-        game.small_font,
+        game.hud_small_font,
         "DASH  READY" if ready else "DASH",
         (0, 220, 255) if ready else MUTED,
-        (118, 74),
+        (98, 63),
         shadow=(0, 0, 0),
     )
 

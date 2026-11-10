@@ -12,11 +12,12 @@ from settings_manager import Settings
 # Shared helpers
 # ---------------------------------------------------------------------------
 
-def _scaled_base_image() -> pygame.Surface:
+def _scaled_base_image(size_multiplier: float = 1.0) -> pygame.Surface:
     """Return a freshly scaled alien sprite (never mutate the cached original)."""
     raw = Assets.get_image('image/alien.png')
     w, h = raw.get_size()
-    return pygame.transform.scale(raw, (int(w * ALIEN_SCALE), int(h * ALIEN_SCALE)))
+    size = tuple(max(1, round(int(dimension * ALIEN_SCALE) * size_multiplier)) for dimension in (w, h))
+    return pygame.transform.scale(raw, size)
 
 
 def _flash_img(surf: pygame.Surface) -> pygame.Surface:
@@ -163,13 +164,15 @@ class Alien(Sprite):
 
     MAX_HP = 1
     SCORE  = 1
+    SPRITE_SCALE = 0.80
+    DROP_CHANCE = 0.10
 
     _FLASH_DURATION = 0.10
 
     def __init__(self, index: int = 0, speed_mult: float = 1.0):
         super().__init__()
 
-        base = _scaled_base_image()
+        base = _scaled_base_image(self.SPRITE_SCALE)
         self._img_normal = base
         self._img_flash  = _flash_img(base)
         self.image  = self._img_normal
@@ -228,6 +231,8 @@ class ArmoredAlien(Alien):
 
     MAX_HP = 2
     SCORE  = 2
+    SPRITE_SCALE = 1.0
+    DROP_CHANCE = 0.25
 
     def __init__(self, index: int = 0, speed_mult: float = 1.0):
         super().__init__(index, speed_mult * 0.80)
@@ -254,6 +259,8 @@ class ZigzagAlien(Alien):
     """Moves in a smooth wide sine-wave pattern horizontally."""
 
     SCORE = 2
+    SPRITE_SCALE = 1.0
+    DROP_CHANCE = 0.25
 
     def __init__(self, index: int = 0, speed_mult: float = 1.0):
         super().__init__(index, speed_mult)
@@ -293,6 +300,8 @@ class ShooterAlien(Alien):
     """Fires a bullet downward at random intervals."""
 
     SCORE = 2
+    SPRITE_SCALE = 1.0
+    DROP_CHANCE = 0.25
 
     def __init__(self, index: int = 0, speed_mult: float = 1.0):
         super().__init__(index, speed_mult * 0.85)

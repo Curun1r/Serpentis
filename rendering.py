@@ -68,6 +68,7 @@ def _draw_mini_warning(p, enemy):
 
 
 def _draw_warning(p, game):
+    """Keep the peripheral warning; the lower wave notice owns its text."""
     if game._boss_warning_timer <= 0:
         return
     t = pygame.time.get_ticks() / 1000
@@ -76,35 +77,27 @@ def _draw_warning(p, game):
     for width, opacity in zip((10, 4) if mini else (18, 8), (alpha, alpha // 2)):
         color = (255, 80, 0, opacity) if mini else (255, 20, 20, opacity)
         p.border(color, width)
-    if int(t * 4) % 2 == 0:
-        p.text(
-            game.med_font if mini else game.wave_font,
-            "MINI-BOSS" if mini else "!! WARNING !!",
-            (255, 160, 0) if mini else (255, 30, 30),
-            (p.width // 2, p.height // 2 - 20),
-            anchor="center",
-        )
-    if not mini:
-        p.text(game.game_font, "BOSS INCOMING!", (255, 120, 120), (p.width // 2, p.height // 2 + 40), anchor="center")
-    else:
-        style = MiniBoss.style_for_wave(game.wave)
-        p.text(game.game_font, f"{style.name} INCOMING", style.color,
-               (p.width // 2, p.height // 2 + 40), anchor="center")
 
 
 def _draw_wave_banner(p, game):
-    if game._wave_banner_timer <= 0:
+    """Announce waves below the action, above the ship's spawn and boss bars."""
+    remaining = max(game._wave_banner_timer, game._boss_warning_timer)
+    if remaining <= 0:
         return
-    alpha = 255 if game._wave_banner_timer >= 0.5 else int(255 * game._wave_banner_timer / 0.5)
+    alpha = 255 if remaining >= 0.5 else int(255 * remaining / 0.5)
     if game.wave % 5 == 0:
-        title, color, subtitle = f"BOSS WAVE  {game.wave}!", (255, 55, 55), "Defeat the boss!"
+        title, color = f"BOSS WAVE  {game.wave}!", (255, 55, 55)
+        subtitle = "Boss incoming!" if game._boss_warning_timer > 0 else "Defeat the boss!"
     elif game.wave % 5 == 3 and game.wave >= 3:
         style = MiniBoss.style_for_wave(game.wave)
-        title, color, subtitle = f"WAVE  {game.wave}  —  MINI-BOSS", style.color, f"{style.name} is approaching"
+        title, color = f"WAVE  {game.wave}  —  MINI-BOSS", style.color
+        subtitle = f"{style.name} incoming!" if game._boss_warning_timer > 0 else f"Defeat {style.name}!"
     else:
         title, color, subtitle = f"WAVE  {game.wave}", (255, 215, 50), "New aliens incoming!"
-    bounds = p.text(game.wave_font, title, color, (p.width // 2, p.height // 3), anchor="center", alpha=alpha)
-    p.text(game.game_font, subtitle, (200, 200, 200), (p.width // 2, bounds.bottom + 4), anchor="midtop", alpha=alpha)
+    bounds = p.text(game.notice_font, title, color, (p.width // 2, p.height - 126),
+                    anchor="center", shadow=(0, 0, 0), alpha=alpha)
+    p.text(game.hud_small_font, subtitle, (200, 200, 200), (p.width // 2, bounds.bottom + 4),
+           anchor="midtop", shadow=(0, 0, 0), alpha=alpha)
 
 
 def draw_loading(game: Game) -> None:

@@ -11,7 +11,7 @@ from app_info import APP_NAME, APP_VERSION
 
 EXPECTED_SCREENS = {'menu', 'hangar', 'settings', 'controls', 'loading', 'gameplay', 'pause', 'results', 'leaderboard'}
 # Golden logical sizes from the game's intended default appearance.
-EXPECTED_SPRITE_SIZES = {'alien': [44, 44], 'player_projectile': [9, 9]}
+EXPECTED_SPRITE_SIZES = {'alien': [35, 35], 'player_projectile': [9, 9]}
 
 
 class BuildVerificationError(RuntimeError):
