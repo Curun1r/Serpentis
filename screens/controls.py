@@ -1,4 +1,6 @@
 """A self-contained guide to the controls and collectible power-ups."""
+import sys
+
 import pygame
 
 from ui_theme import CYAN, PURPLE, GREEN, RED, TEXT, MUTED, panel, text, button, heading, footer
@@ -20,6 +22,7 @@ class ControlsScreen:
         for i, (keys, action) in enumerate([
             ('W A S D / arrow keys', 'Move'), ('Space / left click', 'Shoot'),
             ('Shift + direction', 'Dash'), ('Esc / P', 'Pause'), ('F11', 'Fullscreen'),
+            ('Cmd + M' if sys.platform == 'darwin' else 'Alt + M', 'Minimize'),
         ]):
             y = 244 + i * 52
             text(canvas, self.fonts['small'], keys, (128, y), TEXT)

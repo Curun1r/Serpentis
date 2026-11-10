@@ -128,6 +128,12 @@ class Fighter(Sprite):
     # Movement helpers
     # ------------------------------------------------------------------
 
+    def stop_moving(self) -> None:
+        """Discard held input and an active dash without resetting its cooldown."""
+        self.is_moving_left = self.is_moving_right = False
+        self.is_moving_up = self.is_moving_down = False
+        self._dash_timer = self._dash_vx = self._dash_vy = 0.0
+
     def move_left(self):  self.is_moving_left  = True
     def move_right(self): self.is_moving_right = True
     def move_up(self):    self.is_moving_up    = True

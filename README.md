@@ -138,8 +138,12 @@ Gameplay scenes and leaderboard entries use demonstration runs.
 | `Shift` | Dash |
 | `P` / `Esc` | Pause |
 | `F11` | Toggle fullscreen |
+| `Cmd + Tab` (macOS) / `Alt + Tab` (Windows, Linux) | Switch to another app |
+| `Cmd + M` (macOS) / `Alt + M` (Windows, Linux) | Minimize the game |
 
 In menus, use `Up` / `Down` or `Tab` to navigate and `Enter` to select. Settings use `Left` / `Right` to adjust the focused row. In the hangar, use `Left` / `Right` to choose a ship and `Enter` to launch. Open **How to Play** from the main menu for controls and pickup descriptions.
+
+Fullscreen supports the system app switcher. You can also choose **Minimize** from the pause menu. Switching away automatically pauses an active flight and clears held movement keys; returning keeps it paused until you choose **Resume Flight**. Background simulation and rendering stop, with event polling limited to 15 FPS. Your fullscreen and maximum-FPS preferences are preserved.
 
 On macOS, **AUTO** resolution is enabled by default. Fullscreen uses the current monitor's desktop resolution; windowed mode leaves room for the system menu bar and Dock. The game adapts when moved to another monitor and keeps its proportions. Choose a fixed resolution in Settings to disable Auto. Fullscreen always uses the desktop-sized window; the chosen resolution controls gameplay rendering quality.
 

@@ -20,6 +20,7 @@ from display_layout import (
     fit_viewport,
     game_canvas_size,
     get_native_resolution,
+    open_window,
     remember_display,
     render_canvas_size,
 )
@@ -84,6 +85,7 @@ class Game:
         config.SCREEN_HEIGHT = _LOGICAL_H
 
         self._display_index = current_display_index()
+        self._has_focus = True
         self._open_display()
         self._shake_ox = self._shake_oy = 0
 
@@ -224,8 +226,7 @@ class Game:
             available = choose_window_size(self._native_mode)
             if size[0] > available[0] or size[1] > available[1]:
                 size = fit_viewport(available, size).size
-        flags = pygame.FULLSCREEN if s.fullscreen else 0
-        self.screen = pygame.display.set_mode(size, flags, display=self._display_index, vsync=0)
+        self.screen = open_window(size, s.fullscreen, self._display_index)
         self._disp_w, self._disp_h = self.screen.get_size()
         self._viewport = fit_viewport((self._disp_w, self._disp_h))
 
@@ -290,6 +291,47 @@ class Game:
         s.fullscreen = not s.fullscreen
         s.save()
         self._apply_resolution()
+
+    def _refresh_display_surface(self) -> None:
+        """SDL can resize a native fullscreen Space asynchronously on macOS."""
+        surface = pygame.display.get_surface()
+        if surface is not None:
+            self.screen = surface
+            self._disp_w, self._disp_h = surface.get_size()
+            self._viewport = fit_viewport((self._disp_w, self._disp_h))
+
+    def _pause_game(self) -> None:
+        self.fighter.stop_moving()
+        self._pause.focus.select(1)
+        if self.state == GameState.PLAYING:
+            self.state = GameState.PAUSED
+        if self._fade_next_state == GameState.PLAYING:
+            self._fade_next_state = GameState.PAUSED
+        self._music.pause()
+        self._flush_best_score()
+
+    def _lose_focus(self) -> None:
+        self._has_focus = False
+        self.fighter.stop_moving()
+        self._settings.handle_mouse_up(self)
+        self._pause.handle_mouse_up(self)
+        if self.state == GameState.PLAYING or self._fade_next_state == GameState.PLAYING:
+            self._pause_game()
+        else:
+            self._music.pause()
+
+    def _gain_focus(self) -> None:
+        self._has_focus = True
+        self._refresh_display_surface()
+        if self.state != GameState.PAUSED and self._fade_next_state != GameState.PAUSED:
+            self._music.resume()
+
+    def _minimize_window(self) -> None:
+        """Keep the run and fullscreen preference while giving the desktop focus."""
+        self._lose_focus()
+        if not pygame.display.iconify():
+            # An unsupported minimize request must not leave input disabled.
+            self._gain_focus()
 
     def _fade_to(self, next_state: GameState) -> None:
         """Start a fade-out → switch state → fade-in transition."""
@@ -404,8 +446,11 @@ class Game:
         """Process input, build a frame, apply its transition and present it."""
         try:
             while True:
-                dt = min(self._frame_limiter.tick(Settings.get().fps), 0.1)
+                cap = Settings.get().fps if self._has_focus else 15
+                dt = min(self._frame_limiter.tick(cap), 0.1)
                 self._process_events()
+                if not self._has_focus:
+                    continue  # Freeze simulation, transitions and drawing in the background.
                 frame = self._advance_frame(dt)
                 self._update_fade(dt, frame)
                 self._present(frame)
@@ -479,6 +524,9 @@ class Game:
     # ------------------------------------------------------------------
 
     def _handle_screen_action(self, action: str | None) -> None:
+        if action == "minimize":
+            self._minimize_window()
+            return
         if not action or self._fade_next_state is not None:
             return
         if action == "quit":
@@ -524,6 +572,7 @@ class Game:
                 self._init_game()
                 if action == "menu":
                     self._music.play_menu()
+                    self._music.resume()
                     self._fade_to(GameState.START)
                 else:
                     self._music.play_battle()
@@ -543,12 +592,20 @@ class Game:
 
     def _handle_event(self, event: pygame.event.Event) -> None:
         """Route one SDL event; each handler owns one input or display concern."""
-        if event.type == pygame.MOUSEWHEEL and self.state == GameState.LEADERBOARD:
-            self._leaderboard.handle_wheel(event, self._menu_context)
+        if event.type in (pygame.WINDOWFOCUSLOST, pygame.WINDOWMINIMIZED):
+            self._lose_focus()
+        elif event.type == pygame.WINDOWFOCUSGAINED:
+            self._gain_focus()
+        elif event.type in (pygame.WINDOWSIZECHANGED, pygame.WINDOWRESTORED):
+            self._refresh_display_surface()
         elif event.type == pygame.WINDOWDISPLAYCHANGED:
             self._handle_monitor_change(event)
+        elif not self._has_focus:
+            return
+        elif event.type == pygame.MOUSEWHEEL and self.state == GameState.LEADERBOARD:
+            self._leaderboard.handle_wheel(event, self._menu_context)
         elif event.type == pygame.KEYDOWN:
-            self._handle_keydown(event.key)
+            self._handle_keydown(event.key, getattr(event, 'mod', 0))
         elif event.type == pygame.KEYUP and self.state in (GameState.PLAYING, GameState.PAUSED):
             self._handle_keyup(event.key)
         elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
@@ -572,7 +629,13 @@ class Game:
             self._native_mode = get_native_resolution(index)
         return
 
-    def _handle_keydown(self, key: int) -> None:
+    def _handle_keydown(self, key: int, modifiers: int = 0) -> None:
+        minimize_modifier = pygame.KMOD_GUI if sys.platform == 'darwin' else pygame.KMOD_ALT
+        if key == pygame.K_m and modifiers & minimize_modifier:
+            self._minimize_window()
+            return
+        if modifiers & (pygame.KMOD_GUI | pygame.KMOD_ALT):
+            return  # Cmd/Alt+Tab belongs to the OS, not menu navigation or flight controls.
         if key == pygame.K_F11:
             self._toggle_fullscreen()
             return
@@ -592,10 +655,7 @@ class Game:
                     self._dash_channel.play(self._dash_snd_raw)
                 self.fighter.dash()
             if key in (pygame.K_p, pygame.K_ESCAPE):
-                self._pause.focus.select(1)
-                self.state = GameState.PAUSED
-                self._music.pause()
-                self._flush_best_score()
+                self._pause_game()
         else:
             screen = self._menu_screen()
             if screen:

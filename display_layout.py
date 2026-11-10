@@ -6,6 +6,30 @@ DEFAULT_SIZE = (1280, 720)
 _display_index = 0
 
 
+def open_window(size: tuple[int, int], fullscreen: bool, display_index: int) -> pygame.Surface:
+    """Prefer desktop fullscreen, which leaves app switching to the OS.
+
+    pygame 2.6's set_mode(FULLSCREEN) requests an exclusive display even at
+    desktop size. Toggling a desktop-sized window selects SDL desktop fullscreen
+    without adding a renderer or changing the game's pixel scaling.
+    """
+    desktop_fullscreen = fullscreen and pygame.display.get_driver() not in ('dummy', 'offscreen')
+    flags = pygame.FULLSCREEN if fullscreen and not desktop_fullscreen else 0
+    screen = pygame.display.set_mode(size, flags, display=display_index, vsync=0)
+    if desktop_fullscreen:
+        try:
+            pygame.display.toggle_fullscreen()
+        except pygame.error:
+            pass  # Some window managers do not support toggling desktop fullscreen.
+        screen = pygame.display.get_surface()
+        if not screen.get_flags() & pygame.FULLSCREEN:
+            screen = pygame.display.set_mode(size, pygame.FULLSCREEN, display=display_index, vsync=0)
+    # System shortcuts and the pointer must remain available on every platform.
+    pygame.event.set_grab(False)
+    pygame.event.set_keyboard_grab(False)
+    return screen
+
+
 def remember_display(index: int) -> None:
     """Track the monitor reported by SDL's WINDOWDISPLAYCHANGED event."""
     global _display_index

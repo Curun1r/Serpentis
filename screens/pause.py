@@ -7,9 +7,9 @@ from ui_theme import (TEXT, MUTED, DIM, CYAN, PURPLE, BORDER,
 
 
 class PauseOverlay:
-    """Return resume/restart/menu/quit actions to the game controller."""
+    """Return pause-menu actions to the game controller."""
 
-    _ACTIONS = ('volume', 'resume', 'restart', 'menu', 'quit')
+    _ACTIONS = ('volume', 'resume', 'restart', 'menu', 'minimize', 'quit')
 
     def __init__(self, fonts: dict):
         self.game_font = fonts['game']
@@ -21,16 +21,17 @@ class PauseOverlay:
 
     def _layout(self, sw: int, sh: int) -> dict:
         cx, cy = sw // 2, sh // 2
-        rect = pygame.Rect(cx - 220, cy - 270, 440, 540)
+        rect = pygame.Rect(cx - 220, cy - 300, 440, 600)
         sx, sy, slider_w = rect.x + 32, rect.y + 166, 376
         return {
             'panel': rect,
             'slider_x': sx, 'slider_y': sy, 'slider_w': slider_w, 'slider_h': 10,
             'slider_hit': pygame.Rect(sx - 8, sy - 12, slider_w + 16, 34),
             'resume_rect': pygame.Rect(rect.x + 32, rect.y + 216, 376, 48),
-            'restart_rect': pygame.Rect(rect.x + 32, rect.y + 278, 376, 48),
-            'menu_rect': pygame.Rect(rect.x + 32, rect.y + 340, 376, 48),
-            'quit_rect': pygame.Rect(rect.x + 32, rect.y + 440, 376, 48),
+            'restart_rect': pygame.Rect(rect.x + 32, rect.y + 274, 376, 48),
+            'menu_rect': pygame.Rect(rect.x + 32, rect.y + 332, 376, 48),
+            'minimize_rect': pygame.Rect(rect.x + 32, rect.y + 390, 376, 48),
+            'quit_rect': pygame.Rect(rect.x + 32, rect.y + 482, 376, 48),
         }
 
     def draw(self, canvas: pygame.Surface, game):
@@ -61,13 +62,14 @@ class PauseOverlay:
         if self.focus.active(0):
             pygame.draw.rect(canvas, CYAN, lay['slider_hit'], 1, border_radius=8)
         for i, (name, label) in enumerate((('resume', 'RESUME FLIGHT'), ('restart', 'RESTART'),
-                                           ('menu', 'MAIN MENU'), ('quit', 'QUIT GAME')), start=1):
+                                           ('menu', 'MAIN MENU'), ('minimize', 'MINIMIZE'),
+                                           ('quit', 'QUIT GAME')), start=1):
             rect = lay[f'{name}_rect']
             button(canvas, rect, label, self.game_font,
                    hover=rect.collidepoint(mouse), focused=self.focus.active(i),
                    primary=name == 'resume', danger=name == 'quit')
-        pygame.draw.line(canvas, BORDER, (box.x + 32, box.y + 412),
-                         (box.right - 32, box.y + 412))
+        pygame.draw.line(canvas, BORDER, (box.x + 32, box.y + 458),
+                         (box.right - 32, box.y + 458))
         text(canvas, self.small_font, 'Your flight is frozen until you resume.',
              (box.centerx, box.bottom - 28), DIM, anchor='midbottom')
         footer(canvas, self.small_font,

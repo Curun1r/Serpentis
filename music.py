@@ -143,6 +143,7 @@ class MusicPlayer:
         self._volume   = 0.35
         self._current  = ''
         self._pending  = ''   # track to start once ready
+        self._paused = False
 
         # Build both tracks in background
         self._build_thread = threading.Thread(target=self._build_bg, daemon=True)
@@ -168,6 +169,8 @@ class MusicPlayer:
         self._channel = snd.play(loops=-1)
         if self._channel:
             self._channel.set_volume(self._volume)
+            if self._paused:
+                self._channel.pause()
 
     def play_menu(self):
         if self._current == 'menu' and self._channel and self._channel.get_busy():
@@ -186,10 +189,12 @@ class MusicPlayer:
             self._pending = 'battle'
 
     def pause(self):
+        self._paused = True
         if self._channel:
             self._channel.pause()
 
     def resume(self):
+        self._paused = False
         if self._channel:
             self._channel.unpause()
 
