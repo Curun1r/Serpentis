@@ -28,6 +28,7 @@ from effects import VisualEffects
 from fighter import Fighter
 from frame_timing import FrameLimiter
 from game_state import GameState
+from game_cursor import GameCursor
 from music import MusicPlayer
 from paths import resource_path
 from score_manager import ScoreManager
@@ -114,6 +115,8 @@ class Game:
         self._fade_next_state: GameState | None = None
 
         self.state = GameState.LOADING
+        self._cursor = GameCursor()
+        self._cursor.update(self.state, self._has_focus)
         self._loading_timer = 2.5  # seconds to show splash
         self._init_game()
 
@@ -284,6 +287,7 @@ class Game:
             ),
         )
         self.screen.set_clip(previous_clip)
+        self._cursor.draw(self.screen, self.state, self._has_focus)
         pygame.display.update()
 
     def _toggle_fullscreen(self) -> None:
@@ -312,6 +316,7 @@ class Game:
 
     def _lose_focus(self) -> None:
         self._has_focus = False
+        self._cursor.update(self.state, False)
         self.fighter.stop_moving()
         self._settings.handle_mouse_up(self)
         self._pause.handle_mouse_up(self)
@@ -322,6 +327,7 @@ class Game:
 
     def _gain_focus(self) -> None:
         self._has_focus = True
+        self._cursor.update(self.state, True)
         self._refresh_display_surface()
         if self.state != GameState.PAUSED and self._fade_next_state != GameState.PAUSED:
             self._music.resume()

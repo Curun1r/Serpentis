@@ -120,7 +120,10 @@ def _run(smoke):
                 try:
                     game._flush_best_score()
                 finally:
-                    game._music.close()
+                    try:
+                        game._cursor.close()
+                    finally:
+                        game._music.close()
         finally:
             pygame.quit()
 

@@ -39,4 +39,5 @@ def gameplay(pygame_context, tmp_path, monkeypatch):
     monkeypatch.setattr(game, 'MusicPlayer', Mock)
     instance = game.Game()
     instance.state = game.GameState.PLAYING
-    return instance
+    yield instance
+    instance._cursor.close()
