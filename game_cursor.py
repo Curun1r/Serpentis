@@ -6,14 +6,43 @@ from game_state import GameState
 
 
 def build_cursor() -> pygame.Surface:
-    """Draw once at the OS cursor size; the tip is the exact click hotspot."""
-    image = pygame.Surface((32, 32), pygame.SRCALPHA)
-    hull = [(3, 2), (3, 24), (9, 19), (14, 29), (19, 26), (14, 17), (25, 17)]
-    pygame.draw.polygon(image, (8, 14, 32), hull)
-    pygame.draw.lines(image, (2, 5, 14), True, hull, 3)
-    pygame.draw.lines(image, (70, 220, 255), True, hull, 1)
-    pygame.draw.polygon(image, (155, 110, 235), [(7, 10), (7, 17), (14, 14)])
-    pygame.draw.line(image, (225, 250, 255), (4, 4), (12, 12), 2)
+    """A swept-wing interceptor: smooth edges, pale nose and inset blue canopy."""
+    scale = 4
+    artwork = pygame.Surface((32 * scale, 32 * scale), pygame.SRCALPHA)
+
+    def points(vertices):
+        return [(round(x * scale), round(y * scale)) for x, y in vertices]
+
+    def polygon(color, vertices):
+        pygame.draw.polygon(artwork, color, points(vertices))
+
+    def line(color, start, end, width=1):
+        pygame.draw.line(artwork, color, *points((start, end)), round(width * scale))
+
+    hull = [(3, 2), (27, 13), (17, 16), (13, 27)]
+    polygon((2, 7, 17), [(x + 1, y + 1) for x, y in hull])
+    polygon((15, 34, 55), hull)
+    pygame.draw.lines(artwork, (3, 10, 23), True, points(hull), 2 * scale)
+    polygon((48, 102, 143), [(5, 5), (24, 13), (15, 14)])
+    polygon((29, 66, 103), [(5, 5), (15, 14), (13, 24)])
+
+    # Asymmetric leading edges give the small hull depth without a heavy outline.
+    line((212, 241, 255), (3, 2), (27, 13))
+    line((84, 182, 225), (3, 2), (13, 27))
+    line((56, 116, 153), (27, 13), (17, 16))
+    line((43, 91, 132), (17, 16), (13, 27))
+    line((24, 49, 77), (6, 5), (16, 15))
+
+    polygon((8, 27, 47), [(7, 6), (16, 11), (11, 16)])
+    polygon((106, 213, 245), [(8, 7), (14, 11), (11, 14)])
+    line((226, 250, 255), (8, 7), (11, 10), .75)
+    # Small engine lights tie the pointer to the fleet's cyan/violet palette.
+    line((178, 156, 247), (19, 15.5), (21, 15), .75)
+    line((99, 213, 247), (14.5, 20), (14, 22), .75)
+
+    image = pygame.transform.smoothscale(artwork, (32, 32))
+    # Keep a fully opaque click tip after filtering, at the existing OS hotspot.
+    image.set_at((3, 2), (226, 250, 255, 255))
     return image
 
 
